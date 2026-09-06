@@ -1,5 +1,7 @@
 # Zep Pay
 
+[![buymeachai](https://img.shields.io/badge/buymeachai-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeachai.in/mananbharti)
+
 Offline-first UPI payments for India: scan a QR code, confirm with biometrics, and pay through carrier rails or UPI apps. Everyday money features — history, requests, splits, ZepCoins, shop, NFC Zep Cards, and semiconductor inventory tracking — sit on a local-first Flutter client.
 
 Live / artifacts: [GitHub Pages PWA](https://mananbharti.github.io/zeppay/) · [Releases](https://github.com/mananbharti/zeppay/releases)
