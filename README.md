@@ -2,7 +2,7 @@
 
 Offline-first UPI payments for India: scan a QR code, confirm with biometrics, and pay through carrier rails or UPI apps. Everyday money features — history, requests, splits, ZepCoins, shop, NFC Zep Cards, and semiconductor inventory tracking — sit on a local-first Flutter client.
 
-Live / artifacts: [GitHub Pages PWA](https://biasmanan2010.github.io/zeppay/) · [Releases](https://github.com/BiasManan2010/zeppay/releases)
+Live / artifacts: [GitHub Pages PWA](https://mananbharti.github.io/zeppay/) · [Releases](https://github.com/mananbharti/zeppay/releases)
 
 ## Table of contents
 
@@ -115,7 +115,7 @@ zeppay/
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/BiasManan2010/zeppay.git
+git clone https://github.com/mananbharti/zeppay.git
 cd zeppay
 flutter pub get
 ```
@@ -238,9 +238,9 @@ After deploy:
 
 | Platform | Delivery | Payment path |
 | --- | --- | --- |
-| **Android APK** | [GitHub Releases](https://github.com/BiasManan2010/zeppay/releases) | USSD `*99#`, 123PAY IVR, UPI intents |
-| **Android browser** | [GitHub Pages PWA](https://biasmanan2010.github.io/zeppay/) | UPI app handoff |
-| **iPhone** | [React iOS site](https://biasmanan2010.github.io/zeppay/ios/) | UPI app handoff (Add to Home Screen) |
+| **Android APK** | [GitHub Releases](https://github.com/mananbharti/zeppay/releases) | USSD `*99#`, 123PAY IVR, UPI intents |
+| **Android browser** | [GitHub Pages PWA](https://mananbharti.github.io/zeppay/) | UPI app handoff |
+| **iPhone** | [React iOS site](https://mananbharti.github.io/zeppay/ios/) | UPI app handoff (Add to Home Screen) |
 | **iOS native** | Not primary target | Use PWA |
 
 ### Android permissions
@@ -293,6 +293,6 @@ The suite covers QR parsing, split math, USSD routing, Zep Card codecs, and semi
 
 ## Author
 
-**Manan Bharti** ([@BiasManan2010](https://github.com/BiasManan2010))
+**Manan Bharti** ([@mananbharti](https://github.com/mananbharti))
 
 Built for demonstration and hackathon use.

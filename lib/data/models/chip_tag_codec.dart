@@ -3,7 +3,7 @@ abstract final class ChipTagCodec {
   static const scheme = 'zeppay';
   static const chipHost = 'chip';
   static const webChipBase =
-      'https://biasmanan2010.github.io/zeppay/chip';
+      'https://mananbharti.github.io/zeppay/chip';
 
   static Uri appUri({required String nfcId}) {
     return Uri(
@@ -28,7 +28,8 @@ abstract final class ChipTagCodec {
     final isChipHost = uri.host == chipHost;
     final isZepScheme = uri.scheme == scheme;
     final isWebFallback = uri.scheme == 'https' &&
-        uri.host == 'biasmanan2010.github.io' &&
+        (uri.host == 'mananbharti.github.io' ||
+            uri.host == 'biasmanan2010.github.io') &&
         uri.path.startsWith('/zeppay/chip');
     final isPathChip = uri.path.contains('/chip');
 

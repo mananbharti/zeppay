@@ -26,7 +26,7 @@ abstract final class ZepCardCodec {
   static const profileScheme = 'zeppay';
   static const profileHost = 'profile';
   static const webProfileBase =
-      'https://biasmanan2010.github.io/zeppay/profile';
+      'https://mananbharti.github.io/zeppay/profile';
 
   static Uri appUri({required String vpa, required String name}) {
     return Uri(
@@ -53,7 +53,8 @@ abstract final class ZepCardCodec {
         path.contains('/profile');
     final isZepScheme = uri.scheme == profileScheme;
     final isWebFallback = uri.scheme == 'https' &&
-        uri.host == 'biasmanan2010.github.io' &&
+        (uri.host == 'mananbharti.github.io' ||
+            uri.host == 'biasmanan2010.github.io') &&
         path.startsWith('/zeppay/profile');
     if (!isZepScheme && !isWebFallback && !isProfile) return null;
     return ZepCardProfile(vpa: vpa, name: name);

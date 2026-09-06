@@ -157,10 +157,10 @@ jobs:
             **Android APK:** download `app-release.apk` → allow unknown sources → install.
 
             **iPhone (website, not Flutter PWA):**
-            https://biasmanan2010.github.io/zeppay/ios/
+            https://mananbharti.github.io/zeppay/ios/
             Safari → Share → **Add to Home Screen**
 
-            **Android browser:** https://biasmanan2010.github.io/zeppay/
+            **Android browser:** https://mananbharti.github.io/zeppay/
 
             Jio: 123PAY IVR on Android APK · UPI app on iPhone.
 
