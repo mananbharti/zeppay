@@ -296,6 +296,7 @@ The suite covers QR parsing, split math, USSD routing, Zep Card codecs, and semi
 ## Author
 
 **Manan Bharti** ([@mananbharti](https://github.com/mananbharti))
+**Aaditya Khurana** ([@KhuranaCode](https://github.com/KhuranaCode))
 
 [![buymeachai](https://img.shields.io/badge/buymeachai-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeachai.in/mananbharti)
 
