@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zep Card Profile</title>
+    <meta name="theme-color" content="#E87B3A" />
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+      :root {
+        --cream: #fdecd9;
+        --ink: #1a1a1a;
+        --accent: #e87b3a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: var(--cream);
+        color: var(--ink);
+        min-height: 100vh;
+        padding: 24px 16px;
+      }
+      .card {
+        max-width: 420px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 20px;
+        padding: 24px;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0,0,0,.08);
+      }
+      .avatar {
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+        background: var(--ink);
+        color: var(--accent);
+        display: grid;
+        place-items: center;
+        font-size: 32px;
+        font-weight: 800;
+        margin: 0 auto 12px;
+      }
+      .muted { color: #5c5c5e; font-size: 13px; }
+      #qr { margin: 16px auto; }
+      .btn {
+        display: block;
+        width: 100%;
+        margin-top: 12px;
+        padding: 14px;
+        border: 0;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      .primary { background: var(--accent); color: #fff; }
+      .ghost { background: transparent; border: 1px solid #ddd; color: var(--ink); }
+      .note {
+        max-width: 420px;
+        margin: 16px auto 0;
+        font-size: 13px;
+        color: #5c5c5e;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="avatar" id="initials">Z</div>
+      <p class="muted">Initials avatar — photo isn't stored on the NFC tag</p>
+      <h1 id="name">Zep Card</h1>
+      <p id="vpa"></p>
+      <canvas id="qr"></canvas>
+      <button class="btn primary" id="pay">Open in Zep Pay</button>
+      <button class="btn ghost" id="copy">Copy UPI ID</button>
+    </div>
+    <p class="note">
+      NFC identity is read offline. Payment uses UPI/*99# and needs voice signal — not bank POS.
+      <a href="/zeppay/ios/">Get Zep Pay</a>
+    </p>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const vpa = params.get('vpa') || '';
+      const name = params.get('name') || vpa.split('@')[0] || 'Zep Card';
+      const initials = name.trim().split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'Z';
+      document.getElementById('name').textContent = name;
+      document.getElementById('vpa').textContent = vpa;
+      document.getElementById('initials').textContent = initials;
+      const upi = `${location.origin}/zeppay/profile/?vpa=${encodeURIComponent(vpa)}&name=${encodeURIComponent(name)}`;
+      if (vpa.includes('@')) {
+        QRCode.toCanvas(document.getElementById('qr'), upi, { width: 220, margin: 1 });
+      }
+      document.getElementById('copy').onclick = () => navigator.clipboard.writeText(vpa);
+      document.getElementById('pay').onclick = () => {
+        const ios = `/zeppay/ios/?vpa=${encodeURIComponent(vpa)}&name=${encodeURIComponent(name)}`;
+        location.href = `zeppay://profile?vpa=${encodeURIComponent(vpa)}&name=${encodeURIComponent(name)}`;
+        setTimeout(() => { location.href = ios; }, 600);
+      };
+    </script>
+  </body>
+</html>
