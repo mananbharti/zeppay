@@ -98,7 +98,7 @@ zeppay/
 ├── backend/                # Node OTP + Supabase proxy (deploy to Render)
 ├── server/                 # Legacy Dart OTP stub (local dev fallback)
 ├── supabase/               # SQL schemas and full_setup.sql
-├── zeppay-pwa/             # React iPhone website
+├── zeppay-pwa/             # ZepPay web app (React/Vite PWA, deployed at /zeppay/ios/)
 └── .github/workflows/      # APK, PWA, and iOS web CI
 ```
 
