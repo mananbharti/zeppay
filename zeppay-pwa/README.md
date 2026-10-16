@@ -3,6 +3,7 @@
 Offline UPI payments over `*99#`, as an installable web app (PWA). It lines up the payment and hands it to your bank: either the `*99#` service on your SIM (no internet) or your UPI app (GPay, PhonePe, Paytm and so on). The payment itself is always completed by your bank.
 
 Live (after merge to `main`): https://mananbharti.github.io/zeppay/ios/
+Preview build: https://mananbharti.github.io/zeppay-pwa/
 
 <p align="center">
   <img src="docs/screenshots/02-home.png" width="190" />

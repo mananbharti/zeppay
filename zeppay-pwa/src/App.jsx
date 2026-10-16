@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import jsQR from 'jsqr';
 import * as Ic from './Icons.jsx';
+import logo from './assets/logo.png';
 import { usePersisted } from './store.js';
 import {
   parseUpi, validateAmount, formatINR, telHref, CARRIERS, carrierSupported, newId, upiLink, initials,
@@ -28,7 +29,7 @@ function useTheme() {
     const apply = () => {
       const dark = theme === 'dark' || (theme === 'auto' && mq.matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-      document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#0c0b16' : '#4527d9');
+      document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#07104f' : '#0a1ba8');
     };
     apply(); mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
@@ -132,7 +133,7 @@ function Onboarding({ onDone }) {
   return (
     <div className="onb">
       <button className="skip" onClick={onDone}>Skip</button>
-      <div className="onb-hero"><div className="logo-big"><Ic.Bolt width={54} height={54} /></div><h1 className="brand">ZepPay</h1><p className="tag">Offline UPI payments</p></div>
+      <div className="onb-hero"><div className="logo-big"><img src={logo} alt="ZepPay logo" /></div><h1 className="brand">ZepPay</h1><p className="tag">Offline UPI payments</p></div>
       <div className="onb-card" key={i}>
         <div className="onb-ic">{s.icon}</div><h2>{s.t}</h2><p>{s.d}</p>
         {s.steps && <ol className="mini">{BANK_STEPS.map(([t]) => <li key={t}>{t}</li>)}</ol>}
@@ -156,7 +157,7 @@ function HomeTab({ supported, carrier, history, go, online, installEvt, onInstal
     <main className="page home">
       <section className="hdr">
         <div className="hdr-row">
-          <div className="brandrow"><span className="logo-sm"><Ic.Bolt width={16} height={16} /></span><b>ZepPay</b></div>
+          <div className="brandrow"><span className="logo-sm"><img src={logo} alt="" /></span><b>ZepPay</b></div>
           <span className={'status ' + (online ? '' : 'off')}><i />{online ? 'Online' : 'Offline mode'}</span>
         </div>
         <p className="greet">Pay anyone, even offline</p>

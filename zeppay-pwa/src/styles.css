@@ -1,5 +1,5 @@
-:root{--bg:#f3f3f8;--surface:#fff;--surface2:#ecebf7;--text:#14132a;--muted:#6a6985;--line:#e4e3ef;--brand:#4527d9;--brand2:#5b3df5;--brand-ink:#fff;--accent:#ffbf2e;--ok:#12a36b;--bad:#e5484d;--shadow:0 1px 2px rgba(20,19,42,.06);--r:20px;--nav:78px;color-scheme:light}
-[data-theme=dark]{--bg:#0c0b16;--surface:#16152a;--surface2:#201f3a;--text:#f2f1ff;--muted:#9b9abf;--line:#26254a;--brand:#7a5cff;--brand2:#8c72ff;--shadow:0 8px 30px rgba(0,0,0,.5);color-scheme:dark}
+:root{--bg:#f3f5fb;--surface:#fff;--surface2:#e8ecfa;--text:#14132a;--muted:#6a6985;--line:#e0e5f3;--brand:#1a35e8;--brand2:#3558ff;--brand-ink:#fff;--accent:#ffbf2e;--ok:#12a36b;--bad:#e5484d;--shadow:0 1px 2px rgba(20,19,42,.06);--r:20px;--nav:78px;color-scheme:light}
+[data-theme=dark]{--bg:#0c0b16;--surface:#16152a;--surface2:#201f3a;--text:#f2f1ff;--muted:#9b9abf;--line:#26254a;--brand:#5b84ff;--brand2:#7a9bff;--shadow:0 8px 30px rgba(0,0,0,.5);color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Inter Variable",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 body{overscroll-behavior:none}
@@ -174,12 +174,12 @@ code{background:var(--surface2);padding:1px 6px;border-radius:6px;font-size:.9em
 
 .btn.primary{background:var(--brand);box-shadow:none}
 .btn.sm{border-radius:50%}
-.fab{background:var(--brand);box-shadow:0 6px 16px rgba(69,39,217,.4),0 0 0 6px var(--bg)}
+.fab{background:var(--brand);box-shadow:0 6px 16px rgba(26,53,232,.4),0 0 0 6px var(--bg)}
 .hero-card,.logo-big,.logo-sm{background:var(--brand)}
 .logo-sm{background:rgba(255,255,255,.16)}
 .home{padding:0}
 .hdr{background:var(--brand);color:#fff;padding:max(14px,env(safe-area-inset-top)) 18px 26px;border-radius:0 0 28px 28px}
-[data-theme=dark] .hdr{background:#241a6b}
+[data-theme=dark] .hdr{background:#07104f}
 .hdr-row{display:flex;justify-content:space-between;align-items:center}
 .hdr .brandrow{font-weight:800;letter-spacing:-.02em}
 .hdr .logo-sm{color:var(--accent)}
@@ -220,3 +220,10 @@ code{background:var(--surface2);padding:1px 6px;border-radius:6px;font-size:.9em
 .qa p{margin:0;padding:0 16px 16px;color:var(--muted);font-size:14px;line-height:1.55}
 .sheet-foot.col .btn{height:50px}
 .home .rowbtn.guide,.home .install{width:calc(100% - 36px)}
+
+.hdr{background:#0a1ba8}
+.logo-sm{background:none;overflow:hidden;padding:0}
+.logo-sm img{width:30px;height:30px;border-radius:9px;display:block}
+.logo-big{background:none;overflow:hidden;padding:0;box-shadow:0 20px 50px rgba(10,27,168,.45)}
+.logo-big img{width:100%;height:100%;display:block;object-fit:cover}
+.onb{background:radial-gradient(circle at 50% -10%,rgba(53,88,255,.3),transparent 55%)}
