@@ -138,7 +138,7 @@ ok(await noOverflow(p), 'help has no horizontal overflow');
 await clickText(p, /Bank-link walkthrough/); await wait(300);
 ok(await has(p, /Set a UPI PIN/), 'bank walkthrough opens');
 await shot(p, '12-bankguide');
-await clickText(p, /Dial \*99# now/); ok((await nav(p)).at(-1) === 'tel:*99%23', 'dials *99#');
+await clickText(p, /Dial \*99# now/, 'a'); ok((await nav(p)).at(-1) === 'tel:*99%23', 'dials *99#');
 await clickText(p, /^Close$/);
 await clickText(p, /^Settings$/); await wait(300); await shot(p, '13-settings');
 ok(await noOverflow(p), 'settings has no horizontal overflow');

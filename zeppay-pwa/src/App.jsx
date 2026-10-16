@@ -337,6 +337,13 @@ function PayScreen({ payee, supported, onClose, onGo }) {
   );
 }
 
+
+// A real <a href="tel:..."> so iOS treats the tap as a user-initiated navigation. `before` must be synchronous.
+function TelLink({ code, before, className, children, ...rest }) {
+  const href = telHref(code);
+  return <a href={href} className={className} onClick={(e) => { try { before && before(); } catch { /* ignore */ } if (typeof window.__zepNavigate === 'function') { e.preventDefault(); window.__zepNavigate(href); } }} {...rest}>{children}</a>;
+}
+
 /* ---------- Handoff to dialer ---------- */
 function Handoff({ tx, route, showToast, onClose, onBack, onLaunch, onPick }) {
   const isApp = false;
@@ -345,12 +352,7 @@ function Handoff({ tx, route, showToast, onClose, onBack, onLaunch, onPick }) {
   const code = ios ? full + '#' : full;
   const menuKey = tx.vpa ? '3' : '1';
   const target = tx.vpa || tx.mobile;
-  const open = async () => {
-    onLaunch();
-    if (isApp) { return; }
-    if (await copyText(target)) showToast(tx.vpa ? 'UPI ID copied' : 'Number copied');
-    navigate(telHref(code));
-  };
+  const before = () => { onLaunch(); copyText(target).then((okc) => { if (okc) showToast(tx.vpa ? 'UPI ID copied' : 'Number copied'); }); };
   return (
     <div className="sheet session" role="dialog" aria-label="Complete payment">
       <header className="sheet-top"><button className="icon-btn" onClick={onBack} aria-label="Back"><Ic.Back /></button><b>Pay via *99#</b><span style={{ width: 40 }} /></header>
@@ -362,8 +364,8 @@ function Handoff({ tx, route, showToast, onClose, onBack, onLaunch, onPick }) {
               ? <p>ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code> (iPhone needs the extra #). Paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN. If iOS blocks it, use the menu button below and reply <b>1</b>, then <b>{menuKey}</b>.</p>
               : <p>ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code>. In the bank prompts, paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN. No internet needed.</p>}
         </div>
-        <button className="btn primary wide" onClick={open} data-testid="open-handoff"><Ic.Phone width={20} height={20} /> Open dialer</button>
-        {ios && <button className="btn ghost wide" data-testid="open-menu" onClick={async () => { onLaunch(); await copyText(target); navigate(telHref(USSD_MENU)); }}><Ic.Phone width={20} height={20} /> Open {USSD_MENU} menu instead</button>}
+        <TelLink code={code} before={before} className="btn primary wide" data-testid="open-handoff"><Ic.Phone width={20} height={20} /> Open dialer</TelLink>
+        {ios && <TelLink code={USSD_MENU} before={before} className="btn ghost wide" data-testid="open-menu"><Ic.Phone width={20} height={20} /> Open {USSD_MENU} menu instead</TelLink>}
         {ios && <button className="btn ghost wide" data-testid="copy-code" onClick={async () => showToast((await copyText(full)) ? 'Code copied' : 'Copy not available')}><Ic.Copy width={20} height={20} /> Copy {full} to paste in the dialer</button>}
         {<button className="btn ghost wide" onClick={async () => showToast((await copyText(target)) ? 'Copied' : 'Copy not available')}><Ic.Copy width={20} height={20} /> Copy {target}</button>}
         <p className="fine">When you come back, ZepPay asks if it worked so your history is accurate. Your bank sends the real confirmation.</p>
@@ -399,7 +401,10 @@ function BalanceScreen({ supported, onClose, showToast }) {
       <div className="sheet-body center">
         <div className="livebox"><Ic.Wallet width={34} height={34} /><h2>Balance over *99#</h2>
           <p>ZepPay opens <code>{isIOS() ? USSD_BALANCE + '#' : USSD_BALANCE}</code> in your dialer.{isIOS() ? ' iPhone needs the extra #.' : ''} Pick your bank account and enter your UPI PIN. Your bank shows the balance. ZepPay can't read or store it.</p></div>
-        <button className="btn primary wide" disabled={!supported} onClick={() => { navigate(telHref(isIOS() ? USSD_BALANCE + '#' : USSD_BALANCE)); }} data-testid="balance-dial"><Ic.Phone width={20} height={20} /> Open dialer</button>
+        {supported
+          ? <TelLink code={isIOS() ? USSD_BALANCE + '#' : USSD_BALANCE} className="btn primary wide" data-testid="balance-dial"><Ic.Phone width={20} height={20} /> Open dialer</TelLink>
+          : <button className="btn primary wide" disabled data-testid="balance-dial"><Ic.Phone width={20} height={20} /> Open dialer</button>}
+        {isIOS() && supported && <TelLink code={USSD_MENU} className="btn ghost wide"><Ic.Phone width={20} height={20} /> Open {USSD_MENU} menu instead</TelLink>}
         {!supported && <p className="err center">Jio SIMs can't use *99#.</p>}
         <p className="fine">Not linked yet? Do the one-time bank link first (Home, then "First time?").</p>
       </div>
@@ -460,7 +465,7 @@ function BankGuide({ onClose }) {
       <div className="sheet-body">
         <p className="fine left" style={{ marginTop: 0 }}>Do this once per SIM. After that ZepPay handles the rest.</p>
         <ol className="steps">{BANK_STEPS.map(([t, d]) => <li key={t}><span><b>{t}.</b> {d}</span></li>)}</ol>
-        <button className="btn primary wide" style={{ marginTop: 16 }} onClick={() => { navigate(telHref(USSD_MENU)); }}><Ic.Phone width={20} height={20} /> Dial {USSD_MENU} now</button>
+        <TelLink code={USSD_MENU} className="btn primary wide" style={{ marginTop: 16 }}><Ic.Phone width={20} height={20} /> Dial {USSD_MENU} now</TelLink>
       </div>
     </div>
   );
