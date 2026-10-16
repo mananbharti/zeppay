@@ -107,3 +107,11 @@ export function navigate(url) {
   if (typeof window !== 'undefined' && typeof window.__zepNavigate === 'function') window.__zepNavigate(url);
   else window.location.href = url;
 }
+
+// iOS blocks tel: links that look like USSD call-forwarding codes (e.g. *99*1*3#). Plain *99# is the safe form there.
+export function isIOS() {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.__zepIOS === 'boolean') return window.__zepIOS;
+  const n = window.navigator || {};
+  return /iPhone|iPad|iPod/.test(n.userAgent || '') || (n.platform === 'MacIntel' && n.maxTouchPoints > 1);
+}

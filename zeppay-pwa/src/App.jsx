@@ -5,7 +5,7 @@ import logo from './assets/logo.png';
 import { usePersisted } from './store.js';
 import {
   parseUpi, validateAmount, formatINR, telHref, CARRIERS, carrierSupported, newId, initials,
-  groupByDay, navigate, isValidVpa, isValidMobile, normMobile, USSD_SEND, USSD_MOBILE, USSD_BALANCE, USSD_MENU, MAX_AMOUNT,
+  groupByDay, navigate, isIOS, isValidVpa, isValidMobile, normMobile, USSD_SEND, USSD_MOBILE, USSD_BALANCE, USSD_MENU, MAX_AMOUNT,
 } from './lib.js';
 
 const HUES = [252, 12, 164, 36, 200, 320, 90, 280];
@@ -340,7 +340,10 @@ function PayScreen({ payee, supported, onClose, onGo }) {
 /* ---------- Handoff to dialer ---------- */
 function Handoff({ tx, route, showToast, onClose, onBack, onLaunch, onPick }) {
   const isApp = false;
-  const code = tx.vpa ? USSD_SEND : USSD_MOBILE;
+  const ios = isIOS();
+  const full = tx.vpa ? USSD_SEND : USSD_MOBILE;
+  const code = ios ? USSD_MENU : full;
+  const menuKey = tx.vpa ? '3' : '1';
   const target = tx.vpa || tx.mobile;
   const open = async () => {
     onLaunch();
@@ -355,9 +358,12 @@ function Handoff({ tx, route, showToast, onClose, onBack, onLaunch, onPick }) {
         <div className="amt-show"><small>to {tx.name || target}</small><div>{formatINR(tx.amount)}</div></div>
         <div className="livebox"><Ic.Phone width={34} height={34} />
             <h2>Finish in your dialer</h2>
-            <p>ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code>. In the bank prompts, paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN. No internet needed.</p>
+            {ios
+              ? <p>iPhone blocks long USSD links, so ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code>. In the menu, reply <b>1</b> (Send Money), then <b>{menuKey}</b> ({tx.vpa ? 'UPI ID' : 'Mobile number'}). Paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN.</p>
+              : <p>ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code>. In the bank prompts, paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN. No internet needed.</p>}
         </div>
         <button className="btn primary wide" onClick={open} data-testid="open-handoff"><Ic.Phone width={20} height={20} /> Open dialer</button>
+        {ios && <button className="btn ghost wide" data-testid="copy-code" onClick={async () => showToast((await copyText(full)) ? 'Code copied' : 'Copy not available')}><Ic.Copy width={20} height={20} /> Copy {full} to paste in the dialer</button>}
         {<button className="btn ghost wide" onClick={async () => showToast((await copyText(target)) ? 'Copied' : 'Copy not available')}><Ic.Copy width={20} height={20} /> Copy {target}</button>}
         <p className="fine">When you come back, ZepPay asks if it worked so your history is accurate. Your bank sends the real confirmation.</p>
       </div>
@@ -391,8 +397,8 @@ function BalanceScreen({ supported, onClose, showToast }) {
       <header className="sheet-top"><button className="icon-btn" onClick={onClose} aria-label="Close"><Ic.Close /></button><b>Check balance</b><span style={{ width: 40 }} /></header>
       <div className="sheet-body center">
         <div className="livebox"><Ic.Wallet width={34} height={34} /><h2>Balance over *99#</h2>
-          <p>ZepPay opens <code>{USSD_BALANCE}</code> in your dialer. Pick your bank account and enter your UPI PIN. Your bank shows the balance. ZepPay can't read or store it.</p></div>
-        <button className="btn primary wide" disabled={!supported} onClick={() => { navigate(telHref(USSD_BALANCE)); }} data-testid="balance-dial"><Ic.Phone width={20} height={20} /> Open dialer</button>
+          <p>ZepPay opens <code>{isIOS() ? USSD_MENU : USSD_BALANCE}</code> in your dialer.{isIOS() ? ' iPhone blocks longer codes, so reply 3 (Check Balance) in the menu.' : ''} Pick your bank account and enter your UPI PIN. Your bank shows the balance. ZepPay can't read or store it.</p></div>
+        <button className="btn primary wide" disabled={!supported} onClick={() => { navigate(telHref(isIOS() ? USSD_MENU : USSD_BALANCE)); }} data-testid="balance-dial"><Ic.Phone width={20} height={20} /> Open dialer</button>
         {!supported && <p className="err center">Jio SIMs can't use *99#.</p>}
         <p className="fine">Not linked yet? Do the one-time bank link first (Home, then "First time?").</p>
       </div>

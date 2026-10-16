@@ -157,6 +157,25 @@ await clickText(p, /Clear payment history/); await clickText(p, /^History$/); aw
 ok(await has(p, /No payments yet/), 'history cleared');
 await p.close();
 
+console.log('iPhone: USSD shortcut links are blocked by iOS, so use plain *99#');
+p = await fresh(); await p.evaluate(() => { window.__zepIOS = true; });
+await skip(p);
+await clickText(p, /^UPI ID$/); await wait(200);
+await p.type('input[aria-label="UPI ID"]', 'Test.User@okaxis');
+await p.type('input[aria-label^="Payee name"]', 'Test User');
+await p.keyboard.press('Enter'); await wait(300);
+await p.type('input[aria-label=Amount]', '250'); await p.click('.check input');
+await clickText(p, /with \*99#/); await wait(300);
+ok(await has(p, /iPhone blocks long USSD links/) && await has(p, /reply 1/i), 'iOS handoff explains menu steps');
+await shot(p, '04b-handoff-ios');
+await p.click('[data-testid=open-handoff]'); await wait(200);
+n = await nav(p);
+ok(n.length === 1 && n[0] === 'tel:*99%23', 'iOS opens plain tel:*99%23 only');
+ok((await p.evaluate(() => window.__copied)).includes('Test.User@okaxis'), 'iOS copies the UPI ID');
+await p.click('[data-testid=copy-code]'); await wait(100);
+ok((await p.evaluate(() => window.__copied)).includes('*99*1*3#'), 'iOS can copy full code to paste');
+await p.close();
+
 console.log('Dark / auto');
 p = await fresh({ dark: true });
 ok(await p.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'auto follows system dark');
