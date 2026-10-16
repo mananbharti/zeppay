@@ -4,7 +4,7 @@ import * as Ic from './Icons.jsx';
 import logo from './assets/logo.png';
 import { usePersisted } from './store.js';
 import {
-  parseUpi, validateAmount, formatINR, telHref, CARRIERS, carrierSupported, newId, upiLink, initials,
+  parseUpi, validateAmount, formatINR, telHref, CARRIERS, carrierSupported, newId, initials,
   groupByDay, navigate, isValidVpa, isValidMobile, normMobile, USSD_SEND, USSD_MOBILE, USSD_BALANCE, USSD_MENU, MAX_AMOUNT,
 } from './lib.js';
 
@@ -65,7 +65,7 @@ export default function App() {
     return () => removeEventListener('beforeinstallprompt', h);
   }, []);
 
-  // When the user comes back from the dialer / UPI app, ask how it went.
+  // When the user comes back from the dialer, ask how it went.
   useEffect(() => {
     const onVis = () => { if (document.visibilityState === 'visible' && pending) setScreen((s) => (s?.name === 'outcome' ? s : { name: 'outcome', tx: pending })); };
     document.addEventListener('visibilitychange', onVis);
@@ -125,8 +125,8 @@ function Onboarding({ onDone }) {
   const [i, setI] = useState(0);
   const slides = [
     { icon: <Ic.WifiOff width={44} height={44} />, t: 'Pay with no internet', d: 'ZepPay lines up UPI payments over *99#, the service built into your SIM. No Wi-Fi, no mobile data.' },
-    { icon: <Ic.Scan width={44} height={44} />, t: 'Scan, check, pay', d: 'Scan any UPI QR or enter a UPI ID or mobile number. Pay offline through *99#, or open your UPI app when you have data.' },
-    { icon: <Ic.Shield width={44} height={44} />, t: 'Your PIN stays with your bank', d: 'ZepPay never sees or stores your UPI PIN. You enter it in the dialer or your UPI app. History stays on this device.' },
+    { icon: <Ic.Scan width={44} height={44} />, t: 'Scan, check, pay', d: 'Scan any UPI QR or enter a UPI ID or mobile number. ZepPay lines up the payment and your bank completes it over *99#.' },
+    { icon: <Ic.Shield width={44} height={44} />, t: 'Your PIN stays with your bank', d: 'ZepPay never sees or stores your UPI PIN. You enter it in the dialer. History stays on this device.' },
     { icon: <Ic.Wallet width={44} height={44} />, t: 'One-time bank link', d: 'To pay over *99#, your SIM must be linked to your bank once.', steps: true },
   ];
   const s = slides[i], last = i === slides.length - 1;
@@ -175,7 +175,7 @@ function HomeTab({ supported, carrier, history, go, online, installEvt, onInstal
         <span className="netic"><Ic.WifiOff width={22} height={22} /></span>
         <div><b>Works with no data</b><small>Offline payments use *99# on your {CARRIERS.find((c) => c.id === carrier)?.name} SIM. Your bank completes them.</small></div>
       </section>
-      {!supported && <div className="warn" role="alert"><Ic.Info width={20} height={20} /><div><b>Jio doesn't support *99#.</b> You can still pay with your UPI app when you have internet.</div></div>}
+      {!supported && <div className="warn" role="alert"><Ic.Info width={20} height={20} /><div><b>Jio doesn't support *99#.</b> Payments in ZepPay need a *99# supported SIM.</div></div>}
 
       {recents.length > 0 && <>
         <h3 className="sec">Pay again</h3>
@@ -220,7 +220,7 @@ function PayTo({ kind: initial, onClose, onNext }) {
         <input className="field" autoFocus aria-label={kind === 'upi' ? 'UPI ID' : 'Mobile number'} placeholder={kind === 'upi' ? 'name@bank' : '10-digit mobile number'} inputMode={kind === 'upi' ? 'email' : 'numeric'} value={val} onChange={(e) => setVal(e.target.value)} autoCapitalize="off" autoCorrect="off" spellCheck="false" />
         {val && !ok && <p className="err">{kind === 'upi' ? 'Use the format name@bank.' : 'Enter a valid 10-digit Indian mobile number.'}</p>}
         <input className="field" aria-label="Payee name (optional)" placeholder="Name (optional, for your history)" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
-        {kind === 'mobile' && <p className="fine left">Mobile payments go through *99# only. The number must be linked to a UPI account. UPI apps need a UPI ID or QR.</p>}
+        {kind === 'mobile' && <p className="fine left">Mobile payments go through *99# only. The number must be linked to a UPI account.</p>}
         <button className="btn primary wide" disabled={!ok} style={{ marginTop: 12 }}>Continue <Ic.Arrow width={20} height={20} /></button>
       </form>
     </div>
@@ -327,44 +327,38 @@ function PayScreen({ payee, supported, onClose, onGo }) {
         <div className="quick">{[100, 500, 1000, 2000].map((v) => <button key={v} onClick={() => setAmount(String(v))}>₹{v.toLocaleString('en-IN')}</button>)}</div>
         {!isMobile && <input className="field" aria-label="Note" placeholder="Add a note (optional)" maxLength={50} value={note} onChange={(e) => setNote(e.target.value)} />}
         <label className="check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /><span>I've checked this is the right person to pay.</span></label>
-        <p className="fine left">Your bank completes the payment and asks for your UPI PIN. ZepPay never sees it.</p>
+        <p className="fine left">Payments run only over *99#. Your bank asks for your UPI PIN in the dialer. ZepPay never sees it.</p>
       </div>
       <div className="sheet-foot col">
-        {!isMobile && <button className="btn primary wide" disabled={dis} onClick={() => start('app')}>Pay with UPI app {!err && amount ? formatINR(amount) : ''} <Ic.Arrow width={20} height={20} /></button>}
-        <button className={'btn wide ' + (isMobile ? 'primary' : 'ghost')} disabled={dis || !supported} onClick={() => start('ussd')}><Ic.WifiOff width={20} height={20} /> Pay offline with *99#</button>
+        <button className="btn primary wide" disabled={dis || !supported} onClick={() => start('ussd')}><Ic.WifiOff width={20} height={20} /> Pay {!err && amount ? formatINR(amount) : ''} with *99#</button>
         {!supported && <p className="err center">Jio SIMs can't use *99#.</p>}
       </div>
     </div>
   );
 }
 
-/* ---------- Handoff to UPI app / dialer ---------- */
+/* ---------- Handoff to dialer ---------- */
 function Handoff({ tx, route, showToast, onClose, onBack, onLaunch, onPick }) {
-  const isApp = route === 'app';
+  const isApp = false;
   const code = tx.vpa ? USSD_SEND : USSD_MOBILE;
   const target = tx.vpa || tx.mobile;
   const open = async () => {
     onLaunch();
-    if (isApp) { navigate(upiLink({ vpa: tx.vpa, name: tx.name, amount: tx.amount, note: tx.note })); return; }
+    if (isApp) { return; }
     if (await copyText(target)) showToast(tx.vpa ? 'UPI ID copied' : 'Number copied');
     navigate(telHref(code));
   };
   return (
     <div className="sheet session" role="dialog" aria-label="Complete payment">
-      <header className="sheet-top"><button className="icon-btn" onClick={onBack} aria-label="Back"><Ic.Back /></button><b>{isApp ? 'UPI app' : 'Offline *99#'}</b><span style={{ width: 40 }} /></header>
+      <header className="sheet-top"><button className="icon-btn" onClick={onBack} aria-label="Back"><Ic.Back /></button><b>Pay via *99#</b><span style={{ width: 40 }} /></header>
       <div className="sheet-body center">
         <div className="amt-show"><small>to {tx.name || target}</small><div>{formatINR(tx.amount)}</div></div>
         <div className="livebox"><Ic.Phone width={34} height={34} />
-          {isApp ? <>
-            <h2>Finish in your UPI app</h2>
-            <p>Tap below. Your phone lists the UPI apps you have (GPay, PhonePe, Paytm and so on) with the payee and amount filled in. Confirm and enter your PIN there. Needs internet.</p>
-          </> : <>
             <h2>Finish in your dialer</h2>
             <p>ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code>. In the bank prompts, paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN. No internet needed.</p>
-          </>}
         </div>
-        <button className="btn primary wide" onClick={open} data-testid="open-handoff"><Ic.Phone width={20} height={20} /> {isApp ? 'Open UPI app' : 'Open dialer'}</button>
-        {!isApp && <button className="btn ghost wide" onClick={async () => showToast((await copyText(target)) ? 'Copied' : 'Copy not available')}><Ic.Copy width={20} height={20} /> Copy {target}</button>}
+        <button className="btn primary wide" onClick={open} data-testid="open-handoff"><Ic.Phone width={20} height={20} /> Open dialer</button>
+        {<button className="btn ghost wide" onClick={async () => showToast((await copyText(target)) ? 'Copied' : 'Copy not available')}><Ic.Copy width={20} height={20} /> Copy {target}</button>}
         <p className="fine">When you come back, ZepPay asks if it worked so your history is accurate. Your bank sends the real confirmation.</p>
       </div>
       <div className="sheet-foot col"><button className="btn ghost wide" data-testid="mark-success" onClick={() => onPick('success')}>It worked</button>
@@ -379,7 +373,7 @@ function Outcome({ tx, onPick, onLater }) {
       <header className="sheet-top"><span style={{ width: 40 }} /><b>Did it go through?</b><button className="icon-btn" onClick={onLater} aria-label="Later"><Ic.Close /></button></header>
       <div className="sheet-body center">
         <div className="amt-show"><small>{formatINR(tx.amount)} to</small><div style={{ fontSize: 26 }}>{tx.name || tx.vpa || tx.mobile}</div></div>
-        <p className="fine">ZepPay can't read your bank's reply. Check your bank SMS or UPI app, then tell us so your history is right.</p>
+        <p className="fine">ZepPay can't read your bank's reply. Check your bank SMS, then tell us so your history is right.</p>
       </div>
       <div className="sheet-foot col">
         <button className="btn primary wide" onClick={() => onPick('success')}>Yes, payment went through</button>
@@ -422,7 +416,7 @@ function Receipt({ tx, onClose, onAgain }) {
           <div className="bal-big">{formatINR(tx.amount)}</div><p>{ok ? 'Paid to' : tx.status === 'failed' ? 'Failed to pay' : 'Not confirmed, to'} <b>{tx.name || tx.vpa || tx.mobile}</b></p></div>
         <dl className="kv">
           <dt>{tx.vpa ? 'UPI ID' : 'Mobile'}</dt><dd>{tx.vpa || tx.mobile}</dd><dt>Date</dt><dd>{when}</dd>
-          <dt>Paid via</dt><dd>{tx.route === 'app' ? 'UPI app' : 'Offline *99#'}</dd>
+          <dt>Paid via</dt><dd>*99#</dd>
           {tx.note && <><dt>Note</dt><dd>{tx.note}</dd></>}
         </dl>
         <p className="fine">Status is what you told ZepPay. Your bank SMS is the official record.</p>
@@ -444,7 +438,7 @@ function HistoryTab({ history, go }) {
             <ul className="list">{g.items.map((t) => (
               <li key={t.id}><button onClick={() => go({ name: 'receipt', tx: t })} className="tx">
                 <Avatar name={label(t)} />
-                <span className="tx-m"><b>{t.name || label(t).split('@')[0]}</b><small>{new Date(t.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {t.route === 'app' ? 'UPI app' : '*99#'}</small></span>
+                <span className="tx-m"><b>{t.name || label(t).split('@')[0]}</b><small>{new Date(t.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · *99#</small></span>
                 <span className={'tx-a ' + t.status}>{formatINR(t.amount)}<small>{statusText(t.status)}</small></span>
               </button></li>))}</ul></section>))}
     </main>
@@ -465,11 +459,11 @@ function BankGuide({ onClose }) {
   );
 }
 const FAQ = [
-  ['Does ZepPay move money itself?', 'No. ZepPay lines up the payment. Your bank completes it, either through *99# on your SIM or in your UPI app. ZepPay never sees your UPI PIN.'],
-  ['Which SIMs work?', 'Airtel, Vi and BSNL support *99#. Jio does not. With a Jio SIM, use "Pay with UPI app" when you have internet.'],
-  ['What are the limits?', '*99# allows ₹1 to ₹5,000 per payment, and a daily cap set by your bank. UPI apps have their own limits.'],
-  ['Why does it ask if my payment worked?', 'A web app cannot read the bank reply from the dialer or UPI app. You tell ZepPay, and it saves that to your history on this device.'],
-  ['Can I pay a mobile number?', 'Yes, over *99# only (it uses the "send to mobile number" option). The number must have a UPI account.'],
+  ['Does ZepPay move money itself?', 'No. ZepPay lines up the payment. Your bank completes it, through *99# on your SIM. ZepPay never sees your UPI PIN.'],
+  ['Which SIMs work?', 'Airtel, Vi and BSNL support *99#. Jio does not, so ZepPay cannot pay on a Jio SIM.'],
+  ['What are the limits?', '*99# allows ₹1 to ₹5,000 per payment, and a daily cap set by your bank. '],
+  ['Why does it ask if my payment worked?', 'A web app cannot read the bank reply from the dialer. You tell ZepPay, and it saves that to your history on this device.'],
+  ['Can I pay a mobile number?', 'Yes, it uses the *99# "send to mobile number" option. The number must have a UPI account.'],
   ['Does it work without internet?', 'Yes. After the first load the app opens offline. Offline payments run through your SIM and need voice signal, not data.'],
   ['Where is my data?', 'Only on this device. No accounts, no analytics, no servers. Clearing site data erases your history.'],
 ];
@@ -482,7 +476,7 @@ function HelpTab({ go }) {
       <ol className="steps">
         <li><span><b>Link your bank once.</b> Dial <code>{USSD_MENU}</code> and follow the prompts.</span></li>
         <li><span><b>Scan a UPI QR</b> or enter a UPI ID or mobile number.</span></li>
-        <li><span><b>Check the payee and amount.</b> Pick offline <code>*99#</code> or your UPI app.</span></li>
+        <li><span><b>Check the payee and amount.</b> ZepPay opens <code>*99#</code> in your dialer.</span></li>
         <li><span><b>Enter your UPI PIN</b> in the bank prompt. Come back and confirm.</span></li>
       </ol>
       <button className="rowbtn guide" onClick={() => go({ name: 'bankguide' })}><Ic.Shield width={20} height={20} /> Bank-link walkthrough</button>
