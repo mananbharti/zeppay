@@ -23,7 +23,6 @@ Preview build: https://mananbharti.github.io/zeppay-pwa/
 - **Bank-link guide**: the one-time `*99#` setup, in onboarding, Help and Settings
 - **Scan QR to pay**: live camera scan, upload a QR image, or paste a UPI ID or `upi://` link
 - **Pay to a UPI ID or a mobile number**
-- **Pay with your UPI app**: opens a real `upi://pay` link with payee, name, amount and note filled in. You confirm and enter your PIN in the UPI app
 - **Pay over `*99#`** (the only payment route): copies the UPI ID or number, then opens your dialer with `*99*1*3#` (UPI ID) or `*99*1*1#` (mobile number). No data needed
 - **Check balance**: opens `*99*3#`
 - **History**: every payment you start, saved on the device. When you return from the dialer, ZepPay asks if it went through
