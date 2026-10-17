@@ -230,8 +230,10 @@ function PayTo({ kind: initial, onClose, onNext }) {
 /* ---------- Scanner ---------- */
 function Scanner({ onClose, onResult, showToast }) {
   const video = useRef(); const canvas = useRef(); const fileRef = useRef();
-  const [err, setErr] = useState(''); const [torch, setTorch] = useState(false); const [paste, setPaste] = useState('');
+  const [err, setErr] = useState(''); const [torch, setTorch] = useState(false); const [paste, setPaste] = useState(''); const [scanning, setScanning] = useState(false);
   const streamRef = useRef();
+  const resultRef = useRef(onResult); resultRef.current = onResult;
+  const toastRef = useRef(showToast); toastRef.current = showToast;
   const handleText = useCallback((text) => {
     const p = parseUpi(text);
     if (!p) { showToast('Not a UPI QR'); return false; }
@@ -239,43 +241,85 @@ function Scanner({ onClose, onResult, showToast }) {
   }, [onResult, showToast]);
 
   useEffect(() => {
-    let raf, alive = true;
+    let timer, alive = true, lastBadAt = 0;
     (async () => {
       if (!navigator.mediaDevices?.getUserMedia) { setErr('Camera not available here. Upload a QR image or paste a UPI ID below.'); return; }
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        const s = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
         if (!alive) { s.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = s; video.current.srcObject = s; await video.current.play();
-        const tick = () => {
+        if (!alive) { s.getTracks().forEach((t) => t.stop()); return; }
+        setScanning(true);
+        // Native detector where the browser has one (Chrome/Android); jsQR elsewhere (iPhone).
+        let detector = null;
+        try {
+          if ('BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats()).includes('qr_code')) detector = new BarcodeDetector({ formats: ['qr_code'] });
+        } catch { detector = null; }
+        const found = (text) => {
+          const p = parseUpi(text);
+          if (p) { s.getTracks().forEach((t) => t.stop()); navigator.vibrate?.(30); resultRef.current(p); return true; }
+          const now = Date.now();
+          if (now - lastBadAt > 2500) { lastBadAt = now; toastRef.current('That QR is not a UPI QR'); }
+          return false;
+        };
+        const tick = async () => {
+          if (!alive) return;
           const v = video.current;
-          if (v && v.readyState === 4 && v.videoWidth) {
-            const c = canvas.current; c.width = v.videoWidth; c.height = v.videoHeight;
-            const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(v, 0, 0);
-            const d = g.getImageData(0, 0, c.width, c.height);
-            const r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'dontInvert' });
-            if (r?.data) { const p = parseUpi(r.data); if (p) { navigator.vibrate?.(30); onResult(p); return; } }
+          if (v && v.readyState >= 2 && v.videoWidth && v.videoHeight) {
+            try {
+              if (detector) {
+                const codes = await detector.detect(v);
+                if (!alive) return;
+                if (codes.length && codes[0].rawValue && found(codes[0].rawValue)) return;
+              } else {
+                // Bound the pixels processed per frame so decoding leaves time for camera focus.
+                const k = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+                const c = canvas.current; c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+                const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(v, 0, 0, c.width, c.height);
+                const d = g.getImageData(0, 0, c.width, c.height);
+                const r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+                if (!alive) return;
+                if (r?.data && found(r.data)) return;
+              }
+            } catch { detector = null; /* retry with jsQR after a native detector failure */ }
           }
-          raf = requestAnimationFrame(tick);
+          timer = setTimeout(tick, 180);
         };
         tick();
-      } catch { setErr('Camera permission needed. You can upload a QR image or paste a UPI ID instead.'); }
+      } catch (e) {
+        const name = e && e.name;
+        if (name === 'NotAllowedError' || name === 'SecurityError') setErr('Camera is blocked for ZepPay. Allow camera access in your browser or device settings, then reload. Or upload a QR image below.');
+        else if (name === 'NotFoundError' || name === 'OverconstrainedError') setErr('No camera found on this device. Upload a QR image or paste a UPI ID below.');
+        else if (name === 'NotReadableError') setErr('Another app is using the camera. Close it and try again, or upload a QR image below.');
+        else setErr('Camera would not start. Upload a QR image or paste a UPI ID below.');
+      }
     })();
-    return () => { alive = false; cancelAnimationFrame(raf); streamRef.current?.getTracks().forEach((t) => t.stop()); };
-  }, [onResult]);
+    return () => { alive = false; clearTimeout(timer); streamRef.current?.getTracks().forEach((t) => t.stop()); };
+  }, []);
 
   const fromFile = (f) => {
     if (!f) return;
     const img = new Image();
+    const imageUrl = URL.createObjectURL(f);
     img.onload = () => {
-      const c = document.createElement('canvas'); const k = Math.min(1, 1400 / Math.max(img.width, img.height));
-      c.width = img.width * k; c.height = img.height * k;
-      const g = c.getContext('2d'); g.drawImage(img, 0, 0, c.width, c.height);
-      const d = g.getImageData(0, 0, c.width, c.height);
-      const r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+      // Try two bounded resolutions. Avoid decoding a full 48MP phone photo on the UI thread.
+      const tryAt = (maxSide) => {
+        const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, c.width, c.height);
+        const d = g.getImageData(0, 0, c.width, c.height);
+        return jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+      };
+      const r = tryAt(1400) || tryAt(2400);
+      URL.revokeObjectURL(imageUrl);
       if (!r) showToast('No QR found in that image'); else handleText(r.data);
     };
-    img.onerror = () => showToast('Could not read that image');
-    img.src = URL.createObjectURL(f);
+    img.onerror = () => { URL.revokeObjectURL(imageUrl); showToast('Could not read that image'); };
+    img.src = imageUrl;
   };
   const toggleTorch = async () => {
     const t = streamRef.current?.getVideoTracks()[0];
@@ -288,6 +332,7 @@ function Scanner({ onClose, onResult, showToast }) {
       <div className="scrim" />
       <header className="sheet-top light"><button className="icon-btn" onClick={onClose} aria-label="Close"><Ic.Close /></button><b>Scan UPI QR</b><button className="icon-btn" onClick={toggleTorch} aria-label="Torch"><Ic.Flash style={{ opacity: torch ? 1 : 0.6 }} /></button></header>
       <div className="frame"><i /><i /><i /><i /><span className="laser" /></div>
+      {scanning && !err && <p className="scan-hint">Point at any UPI QR</p>}
       {err && <p className="cam-err">{err}</p>}
       <div className="scan-bottom">
         <input ref={fileRef} type="file" accept="image/*" hidden data-testid="qr-file" onChange={(e) => { fromFile(e.target.files[0]); e.target.value = ''; }} />
