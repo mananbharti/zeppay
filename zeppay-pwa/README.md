@@ -1,44 +1,57 @@
-# Zep Pay — iPhone PWA
+# ZepPay web app
 
-Offline-first UPI for iPhone (Add to Home Screen). **No GPay / PhonePe redirect** — payments complete in the Phone dialer via `*99#`.
+Offline UPI payments over `*99#`, as an installable web app (PWA). It lines up the payment and hands it to your bank: the `*99#` service on your SIM (no internet needed). The payment itself is always completed by your bank.
 
-## Flow
+Live (after merge to `main`): https://mananbharti.github.io/zeppay/ios/
+Preview build: https://mananbharti.github.io/zeppay-pwa/
 
-1. Scan QR or enter UPI ID + amount
-2. Confirm → UPI ID copied, Phone opens with **`*99*1*3#`** pre-filled
-3. Complete USSD in Phone (Zep Pay cannot read the result)
-4. When you return to the app, a **single confirmation** appears instantly: “Did the payment go through?”
-5. One tap records the honest outcome (success / failed / pending timeout)
+<p align="center">
+  <img src="docs/screenshots/02-home.png" width="190" />
+  <img src="docs/screenshots/03-pay.png" width="190" />
+  <img src="docs/screenshots/08-dialer.png" width="190" />
+  <img src="docs/screenshots/06-receipt.png" width="190" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/01b-banklink.png" width="190" />
+  <img src="docs/screenshots/11-help.png" width="190" />
+  <img src="docs/screenshots/07-history.png" width="190" />
+  <img src="docs/screenshots/14-home-dark.png" width="190" />
+</p>
 
-## Feature parity (vs Flutter Android)
+## Features
 
-| Flutter screen | PWA | Notes |
-|---|---|---|
-| Scan / Pay UPI / Amount / Confirm | Yes | `*99#` via `tel:` instead of native USSD |
-| Payment handoff + outcome | Yes | Page Visibility auto-return + one-tap confirm |
-| History | Yes | `localStorage` on device |
-| ZepCoins + Shop | Yes | Earn on confirmed payments, demo partner redeem |
-| Requests (approve to pay) | Yes | Local requests list + pay flow |
-| Split bill | Yes | Groups + equal split (local) |
-| Spending summary | Yes | Confirmed payments only |
-| Profile + receive QR | Yes | UPI ID + on-device QR pattern |
-| NFC / Zep Card / Merchant | No | iOS PWA cannot write NFC tags |
-| Semiconductor inventory | No | Android + Supabase feature |
-| Autopay / Face confirm | No | Android-native flows |
+- **Bank-link guide**: the one-time `*99#` setup, in onboarding, Help and Settings
+- **Scan QR to pay**: live camera scan, upload a QR image, or paste a UPI ID or `upi://` link
+- **Pay to a UPI ID or a mobile number**
+- **Pay over `*99#`** (the only payment route): copies the UPI ID or number, then opens your dialer with `*99*1*3#` (UPI ID) or `*99*1*1#` (mobile number). No data needed
+- **Check balance**: opens `*99*3#`
+- **History**: every payment you start, saved on the device. When you return from the dialer, ZepPay asks if it went through
+- **Help and FAQ**, install to home screen, Auto / Light / Dark theme, carrier picker (Jio doesn't support `*99#`, so offline payments are switched off for it)
+- Works offline once loaded
 
-## Dev
+## What ZepPay can and can't do
+
+A web page can't move money or read your bank's reply. So ZepPay never claims a payment succeeded: the status in History is what you confirm. Your UPI PIN is entered in the dialer only. ZepPay never sees or stores it. Everything is kept in `localStorage` on your device. No analytics, no accounts, no servers.
+
+## Run it
 
 ```bash
 npm install
 npm run dev
+npm run build && npm run preview
 ```
+
+## Tests
 
 ```bash
-npm run build
+npm test                        # unit tests: UPI parsing, validation, USSD codes
+npm run build && npm run e2e    # 52 browser checks in headless Chrome
 ```
 
-## iOS notes
+The browser suite drives the whole app: onboarding, UPI ID and mobile entry, the exact `upi://pay` link and `tel:` codes that get opened, clipboard copy, outcome prompt on return, history, QR decode from an image, help, theme, Jio blocking, layout overflow, service worker and offline load. Set `CHROME=/path/to/chrome` if Chrome isn't at `/usr/bin/google-chrome`, `SHOTS=1` to regenerate screenshots, `TARGET_URL=...` to test a deployed copy.
 
-- Amount field uses `type="text"` + `inputMode="decimal"` for reliable Safari input
-- Pay button shows a loading state while starting the dialer handoff
-- No heuristic “success guessing” — user must confirm what happened in Phone
+## Stack
+
+React, Vite, jsQR, hand-written service worker, Inter. No UI kit.
+
+UPI is a trademark of NPCI. Independent project, not a registered payment service.
