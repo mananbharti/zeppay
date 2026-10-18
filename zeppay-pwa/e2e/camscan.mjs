@@ -13,7 +13,7 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail++; console.log('  FAIL ' + m); } };
 
 // Synthetic UPI payload, never submitted as a payment.
-const PAYLOAD = 'upi://pay?pa=scan-test@examplebank&pn=Scanner%20Test&am=35';
+const PAYLOAD = process.env.QR_PAYLOAD || 'upi://pay?pa=scan-test@examplebank&pn=Scanner%20Test&am=35';
 const W = 1280, H = 720, QR = 360;
 const qr = QRCode.create(PAYLOAD, { errorCorrectionLevel: 'M' });
 const n = qr.modules.size;
@@ -29,7 +29,11 @@ for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
   const dark = !!qr.modules.get(r, c) !== !!process.env.INVERT_QR;
   const x0 = ox + Math.floor(c * cell), x1 = ox + Math.floor((c + 1) * cell);
   const y0 = oy + Math.floor(r * cell), y1 = oy + Math.floor((r + 1) * cell);
-  for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) y[yy * W + xx] = dark ? 16 : 235;
+  for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) {
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const rounded = process.env.STYLED_QR && Math.hypot((xx - cx) / (cell / 2), (yy - cy) / (cell / 2)) > 1.05;
+    y[yy * W + xx] = dark && !rounded ? (process.env.STYLED_QR ? 110 : 16) : 235;
+  }
 }
 const parts = [Buffer.from(`YUV4MPEG2 W${W} H${H} F30:1 Ip A1:1 C420jpeg\n`)];
 for (let i = 0; i < 60; i++) parts.push(Buffer.from('FRAME\n'), y, u, vbuf);
@@ -78,7 +82,7 @@ async function run(name, currentFrameOnly) {
     if (vpa) { label = await p.evaluate(() => document.querySelector('.pname')?.textContent || ''); break; }
     await wait(300);
   }
-  ok(vpa === 'scan-test@examplebank', name + ': camera QR decoded to VPA (got "' + vpa + '")');
+  ok(vpa === (new globalThis.URL(PAYLOAD)).searchParams.get('pa'), name + ': camera QR decoded to VPA (got "' + vpa + '")');
   ok(label === 'Scanner Test', name + ': payee name decoded (got "' + label + '")');
   const amt = await p.evaluate(() => document.querySelector('input[aria-label=Amount]')?.value || '');
   ok(amt === '35', name + ': amount decoded (got "' + amt + '")');

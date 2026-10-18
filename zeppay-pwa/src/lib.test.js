@@ -54,3 +54,11 @@ describe('version-specific menu dialing', () => {
     expect(ussdMenuCode('unknown')).toBe('*99#');
   });
 });
+
+// Synthetic standard UPI payloads, not captured FamApp QR samples.
+describe('Fam UPI addresses', () => {
+  it('accepts static and dynamic @fam payment payloads without an online lookup', () => {
+    expect(parseUpi('upi://pay?pa=sample.user@fam&pn=Scanner%20Test&cu=INR')).toEqual({vpa:'sample.user@fam',name:'Scanner Test',amount:'',note:''});
+    expect(parseUpi('upi://pay?pa=sample.user@fam&pn=Scanner%20Test&am=35&tr=ORDER12345&tn=ORDER12345&cu=INR')).toEqual({vpa:'sample.user@fam',name:'Scanner Test',amount:'35',note:'ORDER12345'});
+  });
+});
