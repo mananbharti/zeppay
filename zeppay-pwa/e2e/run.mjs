@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { spawn } from 'node:child_process';
 
 const PORT = 4179, URL = process.env.TARGET_URL || `http://localhost:${PORT}/`;
-const srv = process.env.TARGET_URL ? { kill() {} } : spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+const srv = process.env.TARGET_URL ? { kill() {} } : spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 2500));
 const SHOTS = process.env.SHOTS === '1';
 const b = await puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'], headless: 'new' });
@@ -60,11 +60,11 @@ await p.click('.check input'); await shot(p, '03-pay');
 ok(await noOverflow(p), 'pay form fits the screen');
 ok(!(await has(p, /UPI app/)), 'pay form offers only *99#');
 await clickText(p, /with \*99#/); await wait(300);
-ok(await has(p, /Finish in your dialer/) && await has(p, /\*99\*1\*3#/), 'handoff shows *99*1*3#');
+ok(await has(p, /Finish in your dialer/) && await has(p, /\*99#/), 'handoff shows *99#');
 await shot(p, '04-handoff');
 await p.click('[data-testid=open-handoff]'); await wait(200);
 let n = await nav(p);
-ok(n.length === 1 && n[0] === 'tel:*99*1*3%23', 'opens tel:*99*1*3%23 only');
+ok(n.length === 1 && n[0] === 'tel:*99%23', 'opens tel:*99%23 only');
 ok(!n.some((u) => u.startsWith('upi:')), 'never opens a upi:// link');
 await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 await wait(300);
@@ -85,11 +85,11 @@ console.log('Pay offline via *99# (UPI ID)');
 await clickText(p, /Pay Test/); await wait(300);
 await retype(p, 'input[aria-label=Amount]', '75'); await p.click('.check input');
 await clickText(p, /with \*99#/); await wait(300);
-ok(await has(p, /Finish in your dialer/) && await has(p, /\*99\*1\*3#/), 'dialer handoff shows *99*1*3#');
+ok(await has(p, /Finish in your dialer/) && await has(p, /\*99#/), 'dialer handoff shows *99#');
 await shot(p, '08-dialer');
 await p.click('[data-testid=open-handoff]'); await wait(300);
 n = await nav(p);
-ok(n.at(-1) === 'tel:*99*1*3%23', 'opens tel:*99*1*3%23');
+ok(n.at(-1) === 'tel:*99%23', 'opens tel:*99%23');
 ok((await p.evaluate(() => window.__copied)).includes('Test.User@okaxis'), 'UPI ID copied to clipboard');
 await clickText(p, /It didn't work/); await wait(300);
 ok(await has(p, /Failed to pay/), 'failure recorded');
@@ -104,7 +104,7 @@ ok(!(await has(p, /UPI app/)), 'no UPI-app wording');
 await p.type('input[aria-label=Amount]', '100'); await p.click('.check input');
 await clickText(p, /with \*99#/); await wait(300);
 await p.click('[data-testid=open-handoff]'); await wait(200);
-ok((await nav(p)).at(-1) === 'tel:*99*1*1%23', 'opens tel:*99*1*1%23 for mobile');
+ok((await nav(p)).at(-1) === 'tel:*99%23', 'opens tel:*99%23 for mobile');
 await clickText(p, /^It worked$/); await wait(300);
 ok(await has(p, /Paid to/), 'mobile payment recorded');
 await clickText(p, /^Close$/);
@@ -112,7 +112,7 @@ await clickText(p, /^Close$/);
 console.log('Balance');
 await clickText(p, /^Balance$/); await wait(300);
 await p.click('[data-testid=balance-dial]'); await wait(200);
-ok((await nav(p)).at(-1) === 'tel:*99*3%23', 'opens tel:*99*3%23');
+ok((await nav(p)).at(-1) === 'tel:*99%23', 'opens tel:*99%23');
 await shot(p, '09-balance');
 await clickText(p, /^Close$/);
 
@@ -157,26 +157,31 @@ await clickText(p, /Clear payment history/); await clickText(p, /^History$/); aw
 ok(await has(p, /No payments yet/), 'history cleared');
 await p.close();
 
-console.log('iPhone: USSD shortcut links are blocked by iOS, so use plain *99#');
-p = await fresh(); await p.evaluate(() => { window.__zepIOS = true; });
-await skip(p);
-await clickText(p, /^UPI ID$/); await wait(200);
-await p.type('input[aria-label="UPI ID"]', 'Test.User@okaxis');
-await p.type('input[aria-label^="Payee name"]', 'Test User');
-await p.keyboard.press('Enter'); await wait(300);
-await p.type('input[aria-label=Amount]', '250'); await p.click('.check input');
-await clickText(p, /with \*99#/); await wait(300);
-ok(await has(p, /iPhone needs the extra #/) && await has(p, /Open \*99# menu instead/), 'iOS handoff explains ## and menu fallback');
-await shot(p, '04b-handoff-ios');
-await p.click('[data-testid=open-handoff]'); await wait(200);
-n = await nav(p);
-ok(n.length === 1 && n[0] === 'tel:*99*1*3%23%23', 'iOS opens tel:*99*1*3%23%23');
-await p.click('[data-testid=open-menu]'); await wait(100);
-ok((await nav(p)).at(-1) === 'tel:*99%23', 'iOS menu fallback opens plain *99#');
-ok((await p.evaluate(() => window.__copied)).includes('Test.User@okaxis'), 'iOS copies the UPI ID');
-await p.click('[data-testid=copy-code]'); await wait(100);
-ok((await p.evaluate(() => window.__copied)).includes('*99*1*3#'), 'iOS can copy full code to paste');
-await p.close();
+console.log('iOS 27, iOS 26 and Android dialer routing');
+for (const [ua, expected] of [
+  ['Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X)', 'tel:*99%23%23'],
+  ['Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)', 'tel:*99%23'],
+  ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X)', 'tel:*99%23'],
+  ['Mozilla/5.0 (Linux; Android 16)', 'tel:*99%23'],
+]) {
+  p = await fresh(); await p.setUserAgent(ua); await p.reload(); await wait(250);
+  await skip(p);
+  await clickText(p, /^UPI ID$/); await wait(200);
+  await p.type('input[aria-label="UPI ID"]', 'Test.User@okaxis');
+  await p.keyboard.press('Enter'); await wait(200);
+  await p.type('input[aria-label=Amount]', '250'); await p.click('.check input');
+  await clickText(p, /with \*99#/); await wait(200);
+  ok(await has(p, /Send Money/) && await has(p, /UPI ID/), ua + ': manual menu steps shown');
+  await p.click('[data-testid=open-handoff]'); await wait(100);
+  ok((await nav(p)).at(-1) === expected, ua + ': payment opens ' + expected);
+  ok((await p.evaluate(() => window.__copied)).includes('Test.User@okaxis'), ua + ': UPI ID copied');
+  await p.close();
+  p = await fresh(); await p.setUserAgent(ua); await p.reload(); await wait(250); await skip(p);
+  await clickText(p, /^Balance$/); await wait(200);
+  await p.click('[data-testid=balance-dial]'); await wait(100);
+  ok((await nav(p)).at(-1) === expected, ua + ': balance opens ' + expected);
+  await p.close();
+}
 
 console.log('Dark / auto');
 p = await fresh({ dark: true });

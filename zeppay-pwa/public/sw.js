@@ -1,11 +1,18 @@
-const CACHE = 'zeppay-v2';
-self.addEventListener('install', (e) => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './manifest.webmanifest', './favicon.png']))); });
-self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
-self.addEventListener('fetch', (e) => {
-  const r = e.request;
-  if (r.method !== 'GET' || new URL(r.url).origin !== location.origin) return;
-  e.respondWith(
-    fetch(r).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(r, copy)); return res; })
-      .catch(() => caches.match(r).then((m) => m || caches.match('./')))
-  );
+const CACHE = 'zeppay-offline-__BUILD_ID__';
+const PRECACHE = /*PRECACHE*/[];
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => (k.startsWith('zeppay-offline-') || k === 'zeppay-v2') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET' || new URL(request.url).origin !== location.origin) return;
+  event.respondWith(caches.open(CACHE).then(async (cache) => {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    try { return await fetch(request); }
+    catch (error) { if (request.mode === 'navigate') return await cache.match('./'); throw error; }
+  }));
 });

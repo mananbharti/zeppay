@@ -50,6 +50,20 @@ async function run(name, currentFrameOnly) {
   p.on('pageerror', (e) => { fail++; console.log('  FAIL pageerror ' + e.message); });
   await p.goto(URL); await wait(400);
   await p.evaluate(() => localStorage.setItem('zep.onboarded', 'true')); await p.reload(); await wait(400);
+  await p.waitForFunction(() => window.__zepOfflineReady === true);
+  if (process.env.OFFLINE_TEST) {
+    const cacheProof = await p.evaluate(async () => {
+      const keys = await caches.keys(); const c = await caches.open(keys.find(k => k.startsWith('zeppay-offline-')));
+      const urls = (await c.keys()).map(r => r.url);
+      return { bundle: urls.some(u => /\.js$/.test(u)), css: urls.some(u => /\.css$/.test(u)), fonts: urls.some(u => /woff2$/.test(u)) };
+    });
+    ok(cacheProof.bundle && cacheProof.css && cacheProof.fonts, name + ': bundles, styles and fonts precached');
+    await p.setOfflineMode(true);
+    await p.reload({ waitUntil: 'load' });
+    await p.waitForSelector('button[aria-label="Scan QR"]');
+    ok(await p.evaluate(() => !navigator.onLine), name + ': reloaded with network disabled');
+    ok(await p.evaluate(() => /Pay anyone, even offline/.test(document.body.innerText)), name + ': app and local onboarding state survive offline reload');
+  }
   await p.evaluate(() => { [...document.querySelectorAll('button')].find((e) => /Scan QR/i.test(e.textContent)).click(); });
   let sawHint = false, sawPayee = false;
   for (let i = 0; i < 30 && !(sawHint || sawPayee); i++) {

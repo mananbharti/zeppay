@@ -5,7 +5,7 @@ import logo from './assets/logo.png';
 import { usePersisted } from './store.js';
 import {
   parseUpi, validateAmount, formatINR, telHref, CARRIERS, carrierSupported, newId, initials,
-  groupByDay, navigate, isIOS, isValidVpa, isValidMobile, normMobile, USSD_SEND, USSD_MOBILE, USSD_BALANCE, USSD_MENU, MAX_AMOUNT,
+  groupByDay, navigate, ussdMenuCode, isIOS, isValidVpa, isValidMobile, normMobile, USSD_SEND, USSD_MOBILE, USSD_BALANCE, USSD_MENU, MAX_AMOUNT,
 } from './lib.js';
 
 const HUES = [252, 12, 164, 36, 200, 320, 90, 280];
@@ -57,6 +57,8 @@ export default function App() {
   const [screen, setScreen] = useState(null);
   const [toast, showToast] = useToast();
   const online = useOnline();
+  const [offlineReady, setOfflineReady] = useState(!!window.__zepOfflineReady);
+  useEffect(() => { const ready = () => setOfflineReady(true); addEventListener('zep-offline-ready', ready); return () => removeEventListener('zep-offline-ready', ready); }, []);
   const [installEvt, setInstallEvt] = useState(null);
 
   useEffect(() => {
@@ -99,6 +101,7 @@ export default function App() {
         <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')} aria-label="Settings"><Ic.Gear /><span>Settings</span></button>
       </nav>
 
+      {!screen && <p className="offline-status" role="status">{offlineReady ? 'Saved for offline use' : online ? 'Preparing offline download...' : 'Offline download not yet confirmed'}</p>}
       {screen?.name === 'scan' && <Scanner onClose={close} onResult={(p) => go({ name: 'pay', payee: p })} showToast={showToast} />}
       {screen?.name === 'payto' && <PayTo kind={screen.kind} onClose={close} onNext={(p) => go({ name: 'pay', payee: p })} />}
       {screen?.name === 'pay' && <PayScreen payee={screen.payee} supported={supported} carrier={carrier} onClose={close} onGo={(tx, route) => go({ name: 'handoff', tx, route })} showToast={showToast} />}
@@ -260,7 +263,7 @@ function Scanner({ onClose, onResult, showToast }) {
         } catch { detector = null; }
         const found = (text) => {
           const p = parseUpi(text);
-          if (p) { s.getTracks().forEach((t) => t.stop()); navigator.vibrate?.(30); resultRef.current(p); return true; }
+          if (p) { s.getTracks().forEach((t) => t.stop()); try { navigator.vibrate?.(30); } catch {} resultRef.current(p); return true; }
           const now = Date.now();
           if (now - lastBadAt > 2500) { lastBadAt = now; toastRef.current('That QR is not a UPI QR'); }
           return false;
@@ -274,13 +277,22 @@ function Scanner({ onClose, onResult, showToast }) {
                 const codes = await detector.detect(v);
                 if (!alive) return;
                 if (codes.length && codes[0].rawValue && found(codes[0].rawValue)) return;
-              } else {
+              }
+              {
                 // Bound the pixels processed per frame so decoding leaves time for camera focus.
                 const k = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
                 const c = canvas.current; c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
                 const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(v, 0, 0, c.width, c.height);
                 const d = g.getImageData(0, 0, c.width, c.height);
-                const r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+                let r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+                if (!r) {
+                  const side = Math.floor(Math.min(v.videoWidth, v.videoHeight) * 0.7);
+                  const targetSize = Math.min(side, 1280);
+                  c.width = targetSize; c.height = targetSize;
+                  g.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, targetSize, targetSize);
+                  const crop = g.getImageData(0, 0, targetSize, targetSize);
+                  r = jsQR(crop.data, targetSize, targetSize, { inversionAttempts: 'attemptBoth' });
+                }
                 if (!alive) return;
                 if (r?.data && found(r.data)) return;
               }
@@ -392,9 +404,7 @@ function TelLink({ code, before, className, children, ...rest }) {
 /* ---------- Handoff to dialer ---------- */
 function Handoff({ tx, route, showToast, onClose, onBack, onLaunch, onPick }) {
   const isApp = false;
-  const ios = isIOS();
-  const full = tx.vpa ? USSD_SEND : USSD_MOBILE;
-  const code = ios ? full + '#' : full;
+  const code = ussdMenuCode();
   const menuKey = tx.vpa ? '3' : '1';
   const target = tx.vpa || tx.mobile;
   const before = () => { onLaunch(); copyText(target).then((okc) => { if (okc) showToast(tx.vpa ? 'UPI ID copied' : 'Number copied'); }); };
@@ -405,13 +415,9 @@ function Handoff({ tx, route, showToast, onClose, onBack, onLaunch, onPick }) {
         <div className="amt-show"><small>to {tx.name || target}</small><div>{formatINR(tx.amount)}</div></div>
         <div className="livebox"><Ic.Phone width={34} height={34} />
             <h2>Finish in your dialer</h2>
-            {ios
-              ? <p>ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code> (iPhone needs the extra #). Paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN. If iOS blocks it, use the menu button below and reply <b>1</b>, then <b>{menuKey}</b>.</p>
-              : <p>ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code>. In the bank prompts, paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN. No internet needed.</p>}
+            <p>ZepPay copies {tx.vpa ? 'the UPI ID' : 'the number'} and opens <code>{code}</code>. Choose <b>1</b> (Send Money), then <b>{menuKey}</b> ({tx.vpa ? 'UPI ID' : 'mobile number'}). Paste it, enter <b>{formatINR(tx.amount)}</b>, then your UPI PIN. No mobile data needed.</p>
         </div>
         <TelLink code={code} before={before} className="btn primary wide" data-testid="open-handoff"><Ic.Phone width={20} height={20} /> Open dialer</TelLink>
-        {ios && <TelLink code={USSD_MENU} before={before} className="btn ghost wide" data-testid="open-menu"><Ic.Phone width={20} height={20} /> Open {USSD_MENU} menu instead</TelLink>}
-        {ios && <button className="btn ghost wide" data-testid="copy-code" onClick={async () => showToast((await copyText(full)) ? 'Code copied' : 'Copy not available')}><Ic.Copy width={20} height={20} /> Copy {full} to paste in the dialer</button>}
         {<button className="btn ghost wide" onClick={async () => showToast((await copyText(target)) ? 'Copied' : 'Copy not available')}><Ic.Copy width={20} height={20} /> Copy {target}</button>}
         <p className="fine">When you come back, ZepPay asks if it worked so your history is accurate. Your bank sends the real confirmation.</p>
       </div>
@@ -445,11 +451,10 @@ function BalanceScreen({ supported, onClose, showToast }) {
       <header className="sheet-top"><button className="icon-btn" onClick={onClose} aria-label="Close"><Ic.Close /></button><b>Check balance</b><span style={{ width: 40 }} /></header>
       <div className="sheet-body center">
         <div className="livebox"><Ic.Wallet width={34} height={34} /><h2>Balance over *99#</h2>
-          <p>ZepPay opens <code>{isIOS() ? USSD_BALANCE + '#' : USSD_BALANCE}</code> in your dialer.{isIOS() ? ' iPhone needs the extra #.' : ''} Pick your bank account and enter your UPI PIN. Your bank shows the balance. ZepPay can't read or store it.</p></div>
+          <p>ZepPay opens <code>{ussdMenuCode()}</code> in your dialer. Choose 3 (Check Balance), then pick your bank account and enter your UPI PIN. Your bank shows the balance. ZepPay can't read or store it.</p></div>
         {supported
-          ? <TelLink code={isIOS() ? USSD_BALANCE + '#' : USSD_BALANCE} className="btn primary wide" data-testid="balance-dial"><Ic.Phone width={20} height={20} /> Open dialer</TelLink>
+          ? <TelLink code={ussdMenuCode()} className="btn primary wide" data-testid="balance-dial"><Ic.Phone width={20} height={20} /> Open dialer</TelLink>
           : <button className="btn primary wide" disabled data-testid="balance-dial"><Ic.Phone width={20} height={20} /> Open dialer</button>}
-        {isIOS() && supported && <TelLink code={USSD_MENU} className="btn ghost wide"><Ic.Phone width={20} height={20} /> Open {USSD_MENU} menu instead</TelLink>}
         {!supported && <p className="err center">Jio SIMs can't use *99#.</p>}
         <p className="fine">Not linked yet? Do the one-time bank link first (Home, then "First time?").</p>
       </div>
@@ -510,7 +515,7 @@ function BankGuide({ onClose }) {
       <div className="sheet-body">
         <p className="fine left" style={{ marginTop: 0 }}>Do this once per SIM. After that ZepPay handles the rest.</p>
         <ol className="steps">{BANK_STEPS.map(([t, d]) => <li key={t}><span><b>{t}.</b> {d}</span></li>)}</ol>
-        <TelLink code={USSD_MENU} className="btn primary wide" style={{ marginTop: 16 }}><Ic.Phone width={20} height={20} /> Dial {USSD_MENU} now</TelLink>
+        <TelLink code={ussdMenuCode()} className="btn primary wide" style={{ marginTop: 16 }}><Ic.Phone width={20} height={20} /> Dial {ussdMenuCode()} now</TelLink>
       </div>
     </div>
   );

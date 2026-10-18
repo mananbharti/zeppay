@@ -115,3 +115,10 @@ export function isIOS() {
   const n = window.navigator || {};
   return /iPhone|iPad|iPod/.test(n.userAgent || '') || (n.platform === 'MacIntel' && n.maxTouchPoints > 1);
 }
+
+// User-requested dialer compatibility rule. Unknown iOS versions use one hash.
+export function ussdMenuCode(ua = typeof navigator === 'undefined' ? '' : navigator.userAgent) {
+  const ios = /iPhone|iPad|iPod/.test(ua);
+  const version = ua.match(/(?:CPU (?:iPhone )?OS|iPhone OS) (\d+)[_\.]/);
+  return ios && Number(version?.[1]) === 27 ? '*99##' : '*99#';
+}

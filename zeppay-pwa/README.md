@@ -55,3 +55,35 @@ The browser suite drives the whole app: onboarding, UPI ID and mobile entry, the
 React, Vite, jsQR, hand-written service worker, Inter. No UI kit.
 
 UPI is a trademark of NPCI. Independent project, not a registered payment service.
+
+## Offline installation and scanner verification
+
+The production build generates a versioned service worker manifest covering HTML,
+JavaScript (including the QR decoder), CSS, fonts, logo, icons and manifest. Wait
+for "Saved for offline use" before disconnecting. Camera decoding, image upload,
+payee entry, history and settings are local; no QR service is contacted.
+
+Offline storage is not permanent: browser/OS eviction, clearing site data or a
+private browsing session can remove it. Save to Home Screen where available.
+Updates and reinstalling need internet. Bank payments still require a supported
+SIM and cellular signal; offline does not mean without cellular service.
+
+Dialing uses the menu, not payment shortcuts: iOS 27 uses `*99##`; iOS 26 and
+older, Android and unknown versions use `*99#`. This follows the requested
+compatibility rule, not a physical-device verification. Browsers that hide the
+actual OS version may fall back to one hash. Choose 1 then 3 for UPI ID, 1 then 1
+for mobile, or 3 for balance. The bank menu remains authoritative.
+
+Regression commands:
+
+```sh
+npm test
+npm run build
+npm run e2e
+OFFLINE_TEST=1 node e2e/camscan.mjs
+INVERT_QR=1 OFFLINE_TEST=1 node e2e/camscan.mjs
+```
+
+Camera tests use a synthetic video feed with a test UPI payload, with the network
+disabled before reloading and opening the scanner. Real iPhone camera focus,
+permissions, version reporting and dialer acceptance still need device testing.

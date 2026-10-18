@@ -44,3 +44,13 @@ describe('misc', () => {
     expect(g.map((x) => x.label)).toEqual(['Today', 'Yesterday']); expect(g[0].items.length).toBe(2);
   });
 });
+
+describe('version-specific menu dialing', () => {
+  it('uses two hashes only on iOS 27', async () => {
+    const { ussdMenuCode } = await import('./lib.js');
+    for (const v of [16,17,18,26,28]) expect(ussdMenuCode(`Mozilla/5.0 (iPhone; CPU iPhone OS ${v}_0 like Mac OS X)`)).toBe('*99#');
+    expect(ussdMenuCode('Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X)')).toBe('*99##');
+    expect(ussdMenuCode('Mozilla/5.0 (Linux; Android 16)')).toBe('*99#');
+    expect(ussdMenuCode('unknown')).toBe('*99#');
+  });
+});
