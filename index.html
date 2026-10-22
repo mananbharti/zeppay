@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="/zeppay/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Zep Pay — scan a UPI QR, confirm, pay.">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Zep Pay">
+  <link rel="apple-touch-icon" href="favicon.png">
+  <meta name="theme-color" content="#1C1C1E">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta http-equiv="Permissions-Policy" content="camera=(self)">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Zep Pay</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script>
+    (function () {
+      var cam = { host: null, video: null, stream: null };
+
+      function isIOS() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      }
+
+      function decodeImageData(imageData) {
+        if (!window.jsQR || !imageData) return null;
+        var code = jsQR(imageData.data, imageData.width, imageData.height);
+        return code ? { data: code.data } : null;
+      }
+
+      window.zepDecodeQr = function (imageData) {
+        return decodeImageData(imageData);
+      };
+
+      window.zepDecodeImageUrl = function (url) {
+        return new Promise(function (resolve) {
+          var img = new Image();
+          img.onload = function () {
+            try {
+              var w = img.naturalWidth || img.width;
+              var h = img.naturalHeight || img.height;
+              if (!w || !h) {
+                resolve(null);
+                return;
+              }
+              var max = 1280;
+              var scale = Math.min(1, max / Math.max(w, h));
+              var cw = Math.max(1, Math.round(w * scale));
+              var ch = Math.max(1, Math.round(h * scale));
+              var canvas = document.createElement('canvas');
+              canvas.width = cw;
+              canvas.height = ch;
+              var ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, cw, ch);
+              resolve(decodeImageData(ctx.getImageData(0, 0, cw, ch)));
+            } catch (e) {
+              resolve(null);
+            }
+          };
+          img.onerror = function () { resolve(null); };
+          img.crossOrigin = 'anonymous';
+          img.src = url;
+        });
+      };
+
+      window.zepDecodeImageUrlCb = function (url, onOk) {
+        window.zepDecodeImageUrl(url).then(function (result) { onOk(result); });
+      };
+
+      function placeHost(rect) {
+        var host = cam.host;
+        if (!host) return;
+        if (rect && rect.width > 8 && rect.height > 8) {
+          host.style.left = Math.round(rect.left) + 'px';
+          host.style.top = Math.round(rect.top) + 'px';
+          host.style.width = Math.round(rect.width) + 'px';
+          host.style.height = Math.round(rect.height) + 'px';
+          host.style.borderRadius = '22px';
+        } else {
+          host.style.left = '50%';
+          host.style.top = '28%';
+          host.style.width = 'min(78vw, 300px)';
+          host.style.height = 'min(78vw, 300px)';
+          host.style.borderRadius = '22px';
+          host.style.transform = 'translateX(-50%) translateZ(0)';
+          host.style.webkitTransform = 'translateX(-50%) translateZ(0)';
+        }
+      }
+
+      function stopCamera() {
+        if (cam.stream) {
+          cam.stream.getTracks().forEach(function (t) { t.stop(); });
+          cam.stream = null;
+        }
+        if (cam.video) {
+          cam.video.srcObject = null;
+        }
+        if (cam.host) {
+          cam.host.remove();
+          cam.host = null;
+        }
+        cam.video = null;
+        document.body.classList.remove('zep-scanning');
+      }
+
+      window.zepStopCamera = stopCamera;
+
+      window.zepPlaceCamera = function (rect) {
+        placeHost(rect);
+      };
+
+      function ensurePlaying(video, onOk, onErr) {
+        var tries = 0;
+        function attempt() {
+          var p = video.play();
+          if (p && p.then) {
+            p.then(function () {
+              if (video.videoWidth > 1 && video.videoHeight > 1) {
+                onOk();
+              } else if (tries++ < 30) {
+                setTimeout(attempt, 80);
+              } else {
+                onOk();
+              }
+            }).catch(function (e) {
+              if (tries++ < 6) setTimeout(attempt, 120);
+              else onErr(e);
+            });
+          } else {
+            onOk();
+          }
+        }
+        attempt();
+      }
+
+      window.zepStartCamera = function (rect, onOk, onErr) {
+        stopCamera();
+        var media = navigator.mediaDevices;
+        if (!media || !media.getUserMedia) {
+          onErr('no-media');
+          return;
+        }
+
+        var host = document.createElement('div');
+        host.id = 'zep-cam-host';
+        var video = document.createElement('video');
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('autoplay', '');
+        video.setAttribute('muted', '');
+        host.appendChild(video);
+        document.body.appendChild(host);
+        cam.host = host;
+        cam.video = video;
+        placeHost(rect);
+
+        function attach(stream) {
+          cam.stream = stream;
+          video.srcObject = stream;
+          document.body.classList.add('zep-scanning');
+          ensurePlaying(video, onOk, onErr);
+        }
+
+        var constraints = {
+          audio: false,
+          video: isIOS()
+            ? { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            : { facingMode: { ideal: 'environment' } }
+        };
+
+        media.getUserMedia(constraints).then(attach).catch(function () {
+          media.getUserMedia({ audio: false, video: true }).then(attach).catch(onErr);
+        });
+      };
+
+      window.zepGrabCameraFrame = function () {
+        var video = cam.video;
+        if (!video) return null;
+        var w = video.videoWidth;
+        var h = video.videoHeight;
+        if (!w || !h) return null;
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        return decodeImageData(ctx.getImageData(0, 0, w, h));
+      };
+    })();
+  </script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #1C1C1E;
+    }
+    /* Live camera sits ON TOP of the opaque Flutter canvas (CanvasKit). */
+    #zep-cam-host {
+      position: fixed;
+      z-index: 2147483646;
+      overflow: hidden;
+      background: #000;
+      pointer-events: none;
+      opacity: 1;
+      box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.55);
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+    #zep-cam-host video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #000;
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+    flutter-view,
+    flt-glass-pane,
+    flt-scene-host,
+    flt-semantics-host {
+      position: relative;
+      z-index: 1;
+    }
+    body.zep-scanning {
+      background: #1C1C1E;
+    }
+  </style>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
