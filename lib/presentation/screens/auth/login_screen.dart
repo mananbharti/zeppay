@@ -59,7 +59,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ref.read(pendingPhoneProvider.notifier).state = phone;
       if (mounted) context.go('/otp');
     } catch (e) {
-      setState(() => _error = '$e'.replaceFirst('Exception: ', ''));
+      final msg = '$e'.replaceFirst('Exception: ', '');
+      setState(
+        () => _error = msg.contains('TimeoutException')
+            ? 'Server is waking up. Wait a few seconds, then tap SEND OTP again.'
+            : msg,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
