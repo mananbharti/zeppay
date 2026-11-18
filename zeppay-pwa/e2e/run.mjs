@@ -181,7 +181,6 @@ for (const [ua, payExpected, balExpected, stepRe] of [
   ['Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X)', 'tel:*99*1*3%23%23', 'tel:*99*3%23%23', /Paste it/],
   ['Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)', 'tel:*99*1*3%23%23', 'tel:*99*3%23%23', /Paste it/],
   ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X)', 'tel:*99*1*3%23%23', 'tel:*99*3%23%23', /Paste it/],
-  ['Mozilla/5.0 (Linux; Android 16)', 'tel:*99*1*3*Test.User@okaxis%23', 'tel:*99*3%23', /already in it/],
 ]) {
   p = await fresh(); await p.setUserAgent(ua); await p.reload(); await wait(250);
   await skip(p);
@@ -201,6 +200,17 @@ for (const [ua, payExpected, balExpected, stepRe] of [
   ok((await nav(p)).at(-1) === balExpected, ua + ': balance opens ' + balExpected);
   await p.close();
 }
+
+console.log('Android web notice (web app is iOS-only)');
+p = await fresh();
+await p.setUserAgent('Mozilla/5.0 (Linux; Android 16)');
+await p.reload(); await wait(250);
+ok(await has(p, /The ZepPay web app works on iPhone/), 'Android UA gets the native-app notice');
+ok(await p.evaluate(() => [...document.querySelectorAll('a')].some((x) => /Get the Android app/.test(x.textContent))), 'notice CTA present');
+const apkHref = await p.evaluate(() => { const a = [...document.querySelectorAll('a')].find((x) => /Get the Android app/.test(x.textContent)); return a ? a.href : ''; });
+ok(/zeppay-release\/releases\/latest\/download\/zeppay\.apk/.test(apkHref), 'notice links the latest Android APK');
+ok(!(await clickText(p, /^UPI ID$/)), 'Android notice replaces the web pay flow');
+await p.close();
 
 console.log('Dialer code setting (iPhone)');
 p = await fresh();
