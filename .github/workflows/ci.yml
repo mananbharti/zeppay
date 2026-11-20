@@ -1,0 +1,122 @@
+name: ZepPay
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+      - name: Debug build
+        run: ./gradlew :app:assembleDebug
+      - name: Signed release build (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          ZEPPAY_KEYSTORE_B64: ${{ secrets.ZEPPAY_KEYSTORE_B64 }}
+          ZEPPAY_STORE_PASSWORD: ${{ secrets.ZEPPAY_STORE_PASSWORD }}
+          ZEPPAY_KEY_ALIAS: ${{ secrets.ZEPPAY_KEY_ALIAS }}
+          ZEPPAY_KEY_PASSWORD: ${{ secrets.ZEPPAY_KEY_PASSWORD }}
+        run: |
+          test -n "$ZEPPAY_KEYSTORE_B64" || { echo "Signing secrets missing"; exit 1; }
+          echo "$ZEPPAY_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          ZEPPAY_KEYSTORE="$RUNNER_TEMP/release.keystore" ./gradlew :app:assembleRelease
+          rm -f "$RUNNER_TEMP/release.keystore"
+      - name: Upload release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeppay-apk
+          path: android-app/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: zeppay-pwa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: zeppay-pwa/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zeppay-web
+          path: zeppay-pwa/dist
+          if-no-files-found: error
+
+  pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [android, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: zeppay-web
+          path: site
+      # Same web app at /zeppay/ (old Android-browser link) and /zeppay/ios/ (iPhone link).
+      - run: cp -r site site-ios && mv site-ios site/ios && cp -r gh-pages-root/zeppay site/
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: site
+          force_orphan: true
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: zeppay-apk
+          path: dist
+      - name: APK names, checksum and update.json
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          CODE=$(grep -oP 'versionCode = \K[0-9]+' android-app/app/build.gradle.kts)
+          NAME=$(grep -oP 'versionName = "\K[^"]+' android-app/app/build.gradle.kts)
+          test "$NAME" = "$V" || { echo "Tag $V doesn't match versionName $NAME"; exit 1; }
+          mv dist/app-release.apk dist/zeppay.apk
+          cp dist/zeppay.apk "dist/zeppay-v$V.apk"
+          SHA=$(sha256sum dist/zeppay.apk | cut -d' ' -f1)
+          SIZE=$(stat -c%s dist/zeppay.apk)
+          jq -n --argjson code "$CODE" --arg name "$NAME" --arg sha "$SHA" --argjson size "$SIZE" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/zeppay-v$V.apk" \
+            --slurpfile notes android-app/release-notes.json \
+            '{versionCode:$code, versionName:$name, apkUrl:$url, sha256:$sha, size:$size, notes:$notes[0]}' > dist/update.json
+          cat dist/update.json
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ZepPay ${{ github.ref_name }}
+          body_path: android-app/RELEASE.md
+          files: |
+            dist/zeppay.apk
+            dist/zeppay-v*.apk
+            dist/update.json
+          make_latest: true

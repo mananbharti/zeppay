@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ZepPay "Aurora Signal" icon: three signal rings (teal to violet) around mint scan corners. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeWidth="2.6" android:fillColor="#00000000"
+        android:pathData="M54,25a29,29 0,1 1,0 58a29,29 0,1 1,0 -58z">
+        <aapt:attr name="android:strokeColor"><gradient android:type="linear" android:startX="25" android:startY="25" android:endX="83" android:endY="83">
+            <item android:offset="0" android:color="#FF19E3C8"/><item android:offset="1" android:color="#FF6A4BFF"/></gradient></aapt:attr>
+    </path>
+    <path android:strokeWidth="2.2" android:fillColor="#00000000" android:strokeAlpha="0.75"
+        android:pathData="M54,31a23,23 0,1 1,0 46a23,23 0,1 1,0 -46z">
+        <aapt:attr name="android:strokeColor"><gradient android:type="linear" android:startX="83" android:startY="31" android:endX="31" android:endY="77">
+            <item android:offset="0" android:color="#FF19E3C8"/><item android:offset="1" android:color="#FF6A4BFF"/></gradient></aapt:attr>
+    </path>
+    <path android:strokeColor="#FF3EF0B1" android:strokeWidth="3.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"
+        android:pathData="M45,50v-3.5a1.5,1.5 0,0 1,1.5 -1.5H50M58,45h3.5a1.5,1.5 0,0 1,1.5 1.5V50M63,58v3.5a1.5,1.5 0,0 1,-1.5 1.5H58M50,63h-3.5a1.5,1.5 0,0 1,-1.5 -1.5V58M48.5,54h11"/>
+</vector>
