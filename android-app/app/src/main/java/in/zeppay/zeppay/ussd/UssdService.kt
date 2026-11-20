@@ -52,11 +52,42 @@ class UssdService : AccessibilityService() {
     @Volatile var active = false
     var listener: ((Frame) -> Unit)? = null
     var onGone: (() -> Unit)? = null
+    /** The bank's screen went out of sight with another app (not ZepPay) on top: the user left. */
+    var onAway: (() -> Unit)? = null
+    /** The bank's screen is visible again after [onAway]. */
+    var onBack: (() -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
     private var lastText: String? = null
+    private var seenDialog = false
     private val readNow = Runnable { readFrame() }
-    private val checkGone = Runnable { if (active && findRoot() == null) onGone?.invoke() }
+    private var misses = 0
+    private val checkGone = Runnable { check(requireMisses = 1) }
+
+    /**
+     * Where the bank's screen is. Window-change events only arrive for the phone packages this
+     * helper is limited to, so leaving for the launcher or another app sends nothing; while a
+     * session runs, the window list is also checked once a second ([watch]). Only window types
+     * and package names are read here, never other apps' content.
+     */
+    private fun check(requireMisses: Int) {
+        if (!active) return
+        if (findRoot() != null) { misses = 0; seenDialog = true; onBack?.invoke(); return }
+        // Before the bank's screen first appears (still dialling) there is nothing to lose sight of.
+        if (!seenDialog) return
+        // Dialogs swap windows between steps; one empty sample isn't "gone".
+        if (++misses < requireMisses) return
+        // Closed (Cancel, or the bank ended it) lands back on ZepPay; anything else means the
+        // user went elsewhere and the dialog may only be hidden, so it isn't treated as closed.
+        if (zepPayOnTop()) onGone?.invoke() else onAway?.invoke()
+    }
+
+    private val watch = object : Runnable {
+        override fun run() { if (!active) return; check(requireMisses = 2); main.postDelayed(this, 1_000) }
+    }
+
+    /** Called when a session attaches: watch the bank's screen until the session ends. */
+    fun startWatching() { misses = 0; main.removeCallbacks(watch); main.postDelayed(watch, 1_000) }
 
     override fun onServiceConnected() { instance = this; Engine.reattach(this) }
     override fun onDestroy() { if (instance === this) instance = null; super.onDestroy() }
@@ -77,7 +108,7 @@ class UssdService : AccessibilityService() {
     /** Read the dialog as it is now (used after a restart, when no event may come). */
     fun readSoon() { main.removeCallbacks(readNow); main.postDelayed(readNow, 400) }
 
-    fun resetForSession() { lastText = null; main.removeCallbacks(readNow); main.removeCallbacks(checkGone) }
+    fun resetForSession() { lastText = null; seenDialog = false; misses = 0; main.removeCallbacks(readNow); main.removeCallbacks(checkGone); main.removeCallbacks(watch) }
 
     /** Types a non-secret value (payee, amount, note) into the bank's box and presses Send. */
     fun reply(value: String): Boolean {
@@ -103,6 +134,7 @@ class UssdService : AccessibilityService() {
     private fun readFrame() {
         if (!active) return
         val root = findRoot() ?: return
+        seenDialog = true
         val texts = mutableListOf<String>()
         var input = false
         walk(root) { n ->
@@ -118,6 +150,13 @@ class UssdService : AccessibilityService() {
         if (key == lastText) return
         lastText = key
         listener?.invoke(Frame(text, input))
+    }
+
+    /** Whether ZepPay's own screen is the top app window. Reads only the window's package name. */
+    private fun zepPayOnTop(): Boolean {
+        val top = windows.orEmpty().firstOrNull { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION } ?: return false
+        if (BuildConfig.DEBUG && top.title?.toString() == SIM_WINDOW_TITLE) return false
+        return top.root?.packageName?.toString() == packageName
     }
 
     private fun allowed(pkg: String?): Boolean =

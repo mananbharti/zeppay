@@ -77,7 +77,7 @@ fun LiveScreen(vm: ZepViewModel, txId: String?) {
         return
     }
     Page("Paying ${money(tx.amount)}", null, footer = {
-        val beforePin = !(phase is Phase.PinHandoff || (phase is Phase.NeedsUser && s.frames.any { Regex("(?i)\\bpin\\b").containsMatchIn(it) }))
+        val beforePin = !(phase is Phase.PinHandoff || (phase is Phase.Away && phase.pinSeen) || (phase is Phase.NeedsUser && s.frames.any { Regex("(?i)\\bpin\\b").containsMatchIn(it) }))
         PlainButton(if (beforePin) "Stop. Nothing is paid yet" else "Stop watching", { Engine.stop() }, Modifier.fillMaxWidth(), icon = ZIcon.Close)
     }) {
         Text("to ${tx.payee.label}", style = ZType.label, color = c.text)
@@ -88,6 +88,13 @@ fun LiveScreen(vm: ZepViewModel, txId: String?) {
                     Text("Type your UPI PIN on the bank's screen", style = ZType.title, color = c.text)
                     Spacer(Modifier.height(6.dp))
                     Body("ZepPay has stepped aside. It can't see your PIN and isn't typing anything. When your bank replies, ZepPay reads the result.")
+                }
+                is Phase.Away -> Panel(Modifier.fillMaxWidth(), color = c.unsure.copy(alpha = 0.25f)) {
+                    Text("The bank's screen is out of sight", style = ZType.title, color = c.text)
+                    Spacer(Modifier.height(6.dp))
+                    Body(if (phase.pinSeen) "If you already typed your PIN, the payment may have gone through. Check your bank SMS before paying again."
+                        else "ZepPay paused and isn't typing anything. Nothing is paid yet.")
+                    Fine("On many phones the *99# screen can't be brought back once you leave it. If it doesn't come back within ${`in`.zeppay.zeppay.ussd.Engine.AWAY_GRACE_MS / 1000} seconds, ZepPay ends this session${if (phase.pinSeen) " as not confirmed" else " as stopped"}.")
                 }
                 is Phase.NeedsUser -> BankCounter(Modifier.fillMaxWidth()) {
                     Kicker("Your bank is asking", color = c.bank)
@@ -109,6 +116,7 @@ fun LiveScreen(vm: ZepViewModel, txId: String?) {
         }
         Steps(phase)
         Fine("Your bank completes the payment. ZepPay only fills in the payee, amount and note.")
+        Fine("Stay on the bank's screen until it's done. ZepPay keeps going if this screen closes, but if you leave the bank's screen, your phone may hide it.")
     }
 }
 
@@ -259,6 +267,7 @@ fun InfoScreen(vm: ZepViewModel, op: Op) {
     val callPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     fun start() {
         `in`.zeppay.zeppay.LiveInfo.payeeLine = if (op == Op.BALANCE) "your balance check" else "your history check"
+        `in`.zeppay.zeppay.LiveInfo.what = if (op == Op.BALANCE) "Balance check" else "History check"
         when (route) {
             Route.STEPWISE -> when (vm.startInfo(op)) {
                 Engine.StartResult.NeedsAccessibility -> vm.go(Screen.Helper)

@@ -52,6 +52,8 @@ sealed interface Screen {
     data class NewSplit(val duo: Boolean) : Screen
     data class AddExpense(val gid: String) : Screen
     data object Licenses : Screen
+    /** The setup walkthrough; [only] = one step id on its own (just in time). */
+    data class Setup(val only: String? = null) : Screen
 }
 
 @Composable
@@ -75,6 +77,10 @@ fun ScreenHost(vm: ZepViewModel, s: Screen) = when (s) {
     is Screen.NewSplit -> NewSplitScreen(vm, s.duo)
     is Screen.AddExpense -> AddExpenseScreen(vm, s.gid)
     Screen.Licenses -> LicensesScreen(vm)
+    is Screen.Setup -> SetupWalkthrough(vm, s.only?.let { `in`.zeppay.zeppay.data.SetupStep.byId(it) }, { vm.back() }) {
+        if (s.only == null) vm.showToast("Setup is done")
+        vm.back()
+    }
 }
 
 @Composable

@@ -179,6 +179,7 @@ fun PayToScreen(vm: ZepViewModel, kind: String, splitRef: String) {
     var v2 by rememberSaveable { mutableStateOf("") }
     var name by rememberSaveable { mutableStateOf("") }
     var tried by remember { mutableStateOf(false) }
+    var finder by rememberSaveable { mutableStateOf(false) }
     val isIvr = vm.route(helperOn()) == Route.IVR
     val ok = when (kind) { "upi" -> Lib.isValidVpa(v1); "mobile" -> Lib.isValidMobile(v1); else -> Lib.isValidAccount(v1) && Lib.isValidIfsc(v2) }
     val picker = rememberLauncherForActivityResult(PickPhone()) { uri ->
@@ -209,8 +210,11 @@ fun PayToScreen(vm: ZepViewModel, kind: String, splitRef: String) {
             else -> {
                 Field(v1, { v1 = it.filter(Char::isDigit) }, "Account number", placeholder = "9 to 18 digits", keyboard = KeyboardType.Number, big = true,
                     error = if (tried && !Lib.isValidAccount(v1)) "Account numbers are 9 to 18 digits." else null)
-                Field(v2, { v2 = it.uppercase().take(11) }, "IFSC", placeholder = "e.g. SBIN0001234", caps = KeyboardCapitalization.Characters, onDone = ::next,
-                    error = if (tried && !Lib.isValidIfsc(v2)) "IFSC is 11 characters, like SBIN0001234." else null)
+                Field(v2, { v2 = it.uppercase().filterNot(Char::isWhitespace).take(11) }, "IFSC", placeholder = "e.g. SBIN0001234", caps = KeyboardCapitalization.Characters, onDone = ::next,
+                    error = if (tried && !Lib.isValidIfsc(v2)) `in`.zeppay.zeppay.data.Ifsc.problem(v2) else null)
+                IfscNote(v2)
+                if (finder) IfscFinder({ v2 = it; finder = false }, { finder = false })
+                else PlainButton("Find IFSC by bank and branch", { finder = true }, Modifier.fillMaxWidth(), icon = ZIcon.Bank)
             }
         }
         Field(name, { name = it.take(40) }, "Their name (optional)", placeholder = "Only for your records")
@@ -274,8 +278,9 @@ fun ConfirmScreen(vm: ZepViewModel, tx: Tx) {
     val ivrBlocked = route == Route.IVR && tx.payee.vpa.isNotEmpty()
     val callPerm = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { if (!it) vm.showToast("ZepPay needs Phone permission to open *99# for you") }
 
-    fun pay() {
+    fun payNow() {
         `in`.zeppay.zeppay.LiveInfo.payeeLine = "${tx.payee.label}, ${money(tx.amount)}"
+        `in`.zeppay.zeppay.LiveInfo.what = "${money(tx.amount)} to ${tx.payee.label}"
         when (route) {
             Route.STEPWISE -> when (vm.startStepwise(tx)) {
                 `in`.zeppay.zeppay.ussd.Engine.StartResult.Started -> vm.replace(Screen.Live(tx.id))
@@ -291,6 +296,19 @@ fun ConfirmScreen(vm: ZepViewModel, tx: Tx) {
             }
         }
     }
+
+    // Just in time: the status notification needs this on Android 13+. Asked once; paying goes ahead either way.
+    val notifPerm = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { payNow() }
+    fun pay() {
+        val p = android.Manifest.permission.POST_NOTIFICATIONS
+        if (route == Route.STEPWISE && android.os.Build.VERSION.SDK_INT >= 33 && p !in vm.store.askedPermissions &&
+            androidx.core.content.ContextCompat.checkSelfPermission(ctx, p) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            vm.store.askedPermissions = vm.store.askedPermissions + p
+            notifPerm.launch(p); return
+        }
+        payNow()
+    }
+
 
     Page("Check and pay", { vm.back() }, footer = {
         ActionButton("Pay ${money(tx.amount)}", ::pay, Modifier.fillMaxWidth().height(72.dp), enabled = sure && !ivrBlocked, icon = ZIcon.Signal)
@@ -312,9 +330,9 @@ fun ConfirmScreen(vm: ZepViewModel, tx: Tx) {
             Text("This can't be paid on a 123PAY call", style = ZType.bodyBold, color = c.text)
             Fine("The call takes number keys only, and a UPI ID has letters. Go back and pay their phone number or bank account.")
         }
-        if (route == Route.STEPWISE && !overlay) Panel(color = c.unsure.copy(alpha = 0.25f)) {
-            Text("Status bubble is off", style = ZType.bodyBold, color = c.text)
-            Fine("You can still pay. Turn on \"display over other apps\" to see ZepPay's progress above the bank's screen.")
+        if (route == Route.STEPWISE && vm.store.overlayCard && !overlay) Panel(color = c.unsure.copy(alpha = 0.25f)) {
+            Text("Progress card can't show", style = ZType.bodyBold, color = c.text)
+            Fine("You can still pay; the notification shows progress. To see the card above the bank's screen, allow \"display over other apps\".")
         }
         if (onCall) Panel(color = c.unsure.copy(alpha = 0.25f)) {
             Text("You're on a call", style = ZType.bodyBold, color = c.text)

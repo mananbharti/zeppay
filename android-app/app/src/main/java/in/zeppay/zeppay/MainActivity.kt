@@ -47,6 +47,7 @@ import `in`.zeppay.zeppay.data.STATUS_UNKNOWN
 import `in`.zeppay.zeppay.data.Settlement
 import `in`.zeppay.zeppay.data.Store
 import `in`.zeppay.zeppay.data.Tx
+import `in`.zeppay.zeppay.notify.PaymentNotice
 import `in`.zeppay.zeppay.ui.Dock
 import `in`.zeppay.zeppay.ui.Screen
 import `in`.zeppay.zeppay.ui.ScreenHost
@@ -254,24 +255,48 @@ fun Root(vm: ZepViewModel) {
     }
 }
 
-/** Mirrors the engine into the overlay and brings ZepPay back when the session ends. */
+/**
+ * Mirrors the engine into the status notification and the optional overlay card. The engine
+ * lives at process level, so a session keeps running when ZepPay's screen is closed or left;
+ * the outcome is recorded here either way.
+ */
 class ZepApp : Application() {
+    /** ZepPay's own screen is visible (started), e.g. under the bank's translucent dialog. */
+    @Volatile var mainVisible = false; private set
+
     override fun onCreate() {
         super.onCreate()
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityStarted(a: android.app.Activity) { if (a is MainActivity) mainVisible = true }
+            override fun onActivityStopped(a: android.app.Activity) { if (a is MainActivity) mainVisible = false }
+            override fun onActivityCreated(a: android.app.Activity, b: Bundle?) {}
+            override fun onActivityResumed(a: android.app.Activity) {}
+            override fun onActivityPaused(a: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(a: android.app.Activity, b: Bundle) {}
+            override fun onActivityDestroyed(a: android.app.Activity) {}
+        })
         val scope = kotlinx.coroutines.MainScope()
         scope.launch {
             Engine.session.collect { s ->
                 val p = s?.phase
+                val store = Store(this@ZepApp)
                 when {
-                    s == null -> `in`.zeppay.zeppay.overlay.HandoffOverlay.hide(this@ZepApp)
+                    s == null -> { `in`.zeppay.zeppay.overlay.HandoffOverlay.hide(this@ZepApp); PaymentNotice.cancel(this@ZepApp) }
                     p is Phase.Done -> {
                         `in`.zeppay.zeppay.overlay.HandoffOverlay.hide(this@ZepApp)
-                        s.txId?.let { PaymentBook.record(Store(this@ZepApp), it, p.outcome) }
+                        s.txId?.let { PaymentBook.record(store, it, p.outcome) }
                         Updater.paymentOpen = false
-                        // Return to ZepPay to read the outcome (allowed: the app holds display-over-apps).
-                        try { startActivity(Intent(this@ZepApp, MainActivity::class.java).putExtra("open", "live").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) } catch (_: Exception) {}
+                        val here = mainVisible
+                        // In ZepPay (under the bank's dialog): show the result there. Elsewhere: a
+                        // private result notification. ZepPay doesn't pull you out of another app.
+                        PaymentNotice.show(this@ZepApp, p, s.op, LiveInfo.what, alertResult = !here)
+                        if (here) try { startActivity(Intent(this@ZepApp, MainActivity::class.java).putExtra("open", "live").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) } catch (_: Exception) {}
                     }
-                    else -> `in`.zeppay.zeppay.overlay.HandoffOverlay.show(this@ZepApp, p!!, LiveInfo.payeeLine)
+                    else -> {
+                        PaymentNotice.show(this@ZepApp, p!!, s.op, LiveInfo.what, alertResult = false)
+                        if (store.overlayCard && p !is Phase.Away) `in`.zeppay.zeppay.overlay.HandoffOverlay.show(this@ZepApp, p, LiveInfo.payeeLine)
+                        else `in`.zeppay.zeppay.overlay.HandoffOverlay.hide(this@ZepApp)
+                    }
                 }
             }
         }
@@ -306,5 +331,10 @@ object PaymentBook {
     }
 }
 
-/** What the overlay says about the payee ("abc@ybl, ₹250"). Set when a payment starts. */
-object LiveInfo { @Volatile var payeeLine: String = "" }
+/** What the overlay and notification say about the session. Set when it starts. */
+object LiveInfo {
+    /** Overlay line, e.g. "Asha, ₹250". */
+    @Volatile var payeeLine: String = ""
+    /** Notification line, e.g. "₹250 to Asha" or "Balance check". Private: hidden on the lock screen. */
+    @Volatile var what: String = ""
+}
