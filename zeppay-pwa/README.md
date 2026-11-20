@@ -7,27 +7,31 @@ Preview build: https://mananbharti.github.io/zeppay-pwa/
 
 <p align="center">
   <img src="docs/screenshots/02-home.png" width="190" />
-  <img src="docs/screenshots/03-pay.png" width="190" />
-  <img src="docs/screenshots/08-dialer.png" width="190" />
-  <img src="docs/screenshots/06-receipt.png" width="190" />
-</p>
-<p align="center">
-  <img src="docs/screenshots/01b-banklink.png" width="190" />
-  <img src="docs/screenshots/11-help.png" width="190" />
-  <img src="docs/screenshots/07-history.png" width="190" />
+  <img src="docs/screenshots/04-handoff.png" width="190" />
+  <img src="docs/screenshots/05-outcome.png" width="190" />
   <img src="docs/screenshots/14-home-dark.png" width="190" />
 </p>
+<p align="center">
+  <img src="docs/screenshots/03-pay.png" width="190" />
+  <img src="docs/screenshots/08-split.png" width="190" />
+  <img src="docs/screenshots/12-bankguide.png" width="190" />
+  <img src="docs/screenshots/13-settings.png" width="190" />
+</p>
+
+Design: "Aurora Signal", shared with the Android app (contract in the Android repo's `docs/DESIGN.md`). Screenshots are real renders from the browser test suite at 390×844.
 
 ## Features
 
-- **Bank-link guide**: the one-time `*99#` setup, in onboarding, Help and Settings
-- **Scan QR to pay**: live camera scan, upload a QR image, or paste a UPI ID or `upi://` link
-- **Pay to a UPI ID or a mobile number**
-- **Pay over `*99#`** (the only payment route): copies the UPI ID or number, then opens your dialer with `*99*1*3#` (UPI ID) or `*99*1*1#` (mobile number). No data needed
-- **Check balance**: opens `*99*3#`
-- **History**: every payment you start, saved on the device. When you return from the dialer, ZepPay asks if it went through
-- **Help and FAQ**, install to home screen, Auto / Light / Dark theme, carrier picker (Jio doesn't support `*99#`, so offline payments are switched off for it)
-- Works offline once loaded
+- **Scan QR to pay**: live camera scan, pick a QR picture, or paste a UPI ID or `upi://` link (decoded on the device)
+- **Pay a UPI ID, mobile number or bank account + IFSC** over `*99#` (the only payment route)
+- **Copy, then open the Phone app** with the right code for the platform (see dialer codes below); the UPI PIN is typed only there
+- **"Did it go through?"** when you come back. A web page can't read the bank's reply, so every status is what you marked, and the app says so. Unsure payments get a "don't pay again yet" warning
+- **Balance** via `*99*3#`
+- **Split a bill**: one-person splits and groups, who owes what, "Pay my share". Stored on this device only (no sync)
+- **Spends**: monthly totals of ZepPay-recorded payments, labelled as not a bank statement
+- **Link your bank**: first-time `*99#` walkthrough, one step per screen
+- **Add to Home Screen** guide. Picture steps still need real iPhone screenshots (not faked)
+- Night / Daylight / Auto, carrier picker (Jio blocks `*99#` payments), works offline once saved
 
 ## What ZepPay can and can't do
 
@@ -45,14 +49,14 @@ npm run build && npm run preview
 
 ```bash
 npm test                        # unit tests: UPI parsing, validation, USSD codes
-npm run build && npm run e2e    # 52 browser checks in headless Chrome
+npm run build && npm run e2e    # 87 browser checks in headless Chrome
 ```
 
 The browser suite drives the whole app: onboarding, UPI ID and mobile entry, the exact `upi://pay` link and `tel:` codes that get opened, clipboard copy, outcome prompt on return, history, QR decode from an image, help, theme, Jio blocking, layout overflow, service worker and offline load. Set `CHROME=/path/to/chrome` if Chrome isn't at `/usr/bin/google-chrome`, `SHOTS=1` to regenerate screenshots, `TARGET_URL=...` to test a deployed copy.
 
 ## Stack
 
-React, Vite, jsQR, hand-written service worker, Inter. No UI kit.
+React, Vite, jsQR + zxing-wasm, hand-written service worker, bundled Bricolage Grotesque + Atkinson Hyperlegible Next (OFL). No UI kit. `node e2e/make-icons.mjs` regenerates the app icons.
 
 UPI is a trademark of NPCI. Independent project, not a registered payment service.
 

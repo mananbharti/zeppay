@@ -182,3 +182,56 @@ export function ussdPayCode(payee, ua = defaultUA(), mode = 'auto') {
 export function ussdBalanceCode(ua = defaultUA(), mode = 'auto') {
   return ussdHandoffKind(ua, mode) === 'sub' ? '*99*3##' : '*99*3#';
 }
+
+/* ---------- Splits (on this device only; no sync) ---------- */
+export const ME = 'me';
+const r2 = (v) => Math.round(v * 100) / 100;
+
+// Equal split; the last share absorbs the paisa remainder so shares sum exactly.
+export function equalShares(amount, ids) {
+  if (!ids.length) return {};
+  const base = Math.floor((amount * 100) / ids.length) / 100;
+  const out = {};
+  ids.forEach((id, i) => { out[id] = i === ids.length - 1 ? r2(amount - base * (ids.length - 1)) : base; });
+  return out;
+}
+
+// Pairwise netted debts [{from, to, amount}]. A settlement from A to B cancels A's debt to B.
+export function debts(group) {
+  const owe = new Map();
+  const add = (from, to, v) => { if (from !== to && v) owe.set(from + '>' + to, (owe.get(from + '>' + to) || 0) + v); };
+  for (const e of group.expenses || []) for (const [who, share] of Object.entries(e.shares)) add(who, e.paidBy, share);
+  for (const s of group.settlements || []) add(s.to, s.from, s.amount);
+  const ids = [...new Set([...(group.people || []).map((p) => p.id), ME])];
+  const out = [];
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const a = ids[i], b = ids[j];
+    const net = r2((owe.get(a + '>' + b) || 0) - (owe.get(b + '>' + a) || 0));
+    if (Math.abs(net) >= 0.01) out.push(net > 0 ? { from: a, to: b, amount: net } : { from: b, to: a, amount: -net });
+  }
+  return out;
+}
+
+export const totalYouOwe = (gs) => r2(gs.reduce((s, g) => s + debts(g).filter((d) => d.from === ME).reduce((x, d) => x + d.amount, 0), 0));
+export const totalOwedToYou = (gs) => r2(gs.reduce((s, g) => s + debts(g).filter((d) => d.to === ME).reduce((x, d) => x + d.amount, 0), 0));
+
+/* ---------- Spends: ZepPay-recorded payments only, never a bank statement ---------- */
+export function monthly(history, months = 6, now = Date.now()) {
+  const out = [];
+  const d = new Date(now);
+  for (let k = 0; k < months; k++) {
+    const y = d.getFullYear(), m = d.getMonth();
+    const inMonth = history.filter((t) => { const x = new Date(t.at); return x.getFullYear() === y && x.getMonth() === m; });
+    const paid = inMonth.filter((t) => t.status === 'success');
+    const byWho = {};
+    for (const t of paid) { const k2 = t.name || t.vpa || t.mobile || t.account; byWho[k2] = r2((byWho[k2] || 0) + Number(t.amount)); }
+    out.push({
+      year: y, month: m, paid: r2(paid.reduce((s, t) => s + Number(t.amount), 0)), paidCount: paid.length,
+      unconfirmed: inMonth.filter((t) => t.status === 'unknown' || t.status === 'pending').length,
+      failed: inMonth.filter((t) => t.status === 'failed').length,
+      top: Object.entries(byWho).sort((a, b) => b[1] - a[1]).slice(0, 3),
+    });
+    d.setDate(1); d.setMonth(d.getMonth() - 1);
+  }
+  return out;
+}
