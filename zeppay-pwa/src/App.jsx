@@ -100,7 +100,7 @@ function TelLink({ code, before, className, children, ...rest }) {
   return <a href={href} className={className} onClick={(e) => { try { before && before(); } catch { /* ignore */ } if (typeof window.__zepNavigate === 'function') { e.preventDefault(); window.__zepNavigate(href); } }} {...rest}>{children}</a>;
 }
 
-const ANDROID_APP_URL = 'https://github.com/mananbharti/zeppay-release/releases/latest/download/zeppay.apk';
+const ANDROID_APP_URL = 'https://github.com/mananbharti/zeppay/releases/latest/download/zeppay.apk';
 const isAndroid = () => typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
 function AndroidNotice() {
   return (

@@ -227,7 +227,7 @@ await p.setUserAgent('Mozilla/5.0 (Linux; Android 16)');
 await p.reload(); await wait(250);
 ok(await has(p, /Made for iPhone/), 'Android UA gets the native-app notice');
 const apkHref = await p.evaluate(() => { const a = [...document.querySelectorAll('a')].find((x) => /Get the Android app/.test(x.textContent)); return a ? a.href : ''; });
-ok(/zeppay-release\/releases\/latest\/download\/zeppay\.apk/.test(apkHref), 'notice links the latest Android APK');
+ok(/mananbharti\/zeppay\/releases\/latest\/download\/zeppay\.apk/.test(apkHref), 'notice links the latest Android APK');
 ok(!(await clickText(p, /^UPI ID$/)), 'Android notice replaces the web pay flow');
 await p.close();
 

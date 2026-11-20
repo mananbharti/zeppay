@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ZepPay</string>
+    <string name="helper_label">ZepPay helper</string>
+    <string name="helper_description">Fills in the payee, amount and note on your phone\'s *99# screen while you pay in ZepPay. It only reads the *99# screen, only during a ZepPay payment, and never reads what you type there, so it never sees your UPI PIN.</string>
+</resources>
