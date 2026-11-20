@@ -323,6 +323,9 @@ fun LicensesScreen(vm: ZepViewModel) {
         Body("Bricolage Grotesque and Atkinson Hyperlegible Next: SIL Open Font License 1.1 (full text ships in the app).")
         Body("ZXing: Apache License 2.0. AndroidX and Jetpack Compose: Apache License 2.0.")
         Body("The stepwise *99# approach was studied in OffPay (github.com/laksh-ya/OffPayApp, MIT, © 2026 Lakshya and Harsh). ZepPay's code is its own; OffPay's PIN entry and success rules were deliberately not adopted.")
+        Directory.get(LocalContext.current).info?.let { d ->
+            Body("Bank and IFSC list: ${d.source} (${d.sourceUrl}), release ${d.release}, RBI list of ${d.rbiDate}, ${d.branches} branches. ${d.licence}.")
+        }
         Body("UPI is a trademark of NPCI. ZepPay isn't affiliated with NPCI or any bank.")
     }
 }

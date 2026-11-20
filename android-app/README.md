@@ -70,7 +70,9 @@ An IFSC is an 11-character code for one bank branch: 4 letters for the bank, a z
 
 The finder only fills in the IFSC field. It never links, checks or verifies anyone's account; linking your own account stays in your bank's `*99#` flow.
 
-- **Data:** `app/src/main/assets/ifsc/`, built by [`tools/ifsc/build_ifsc.py`](tools/ifsc/build_ifsc.py) from a published IFSC list. Source, date, count and limits are in `meta.tsv` and shown in the app.
+- **Data:** `app/src/main/assets/ifsc/`, built by [`tools/ifsc/build_ifsc.py`](tools/ifsc/build_ifsc.py) from the [Razorpay IFSC dataset](https://github.com/razorpay/ifsc) release v2.0.62. It is compiled from RBI's NEFT/RTGS IFSC lists and NPCI member lists; RBI list dated 2026-08-15; 183,214 branches under 260 bank codes. It adds about 2.4 MB to the APK. Only code, branch, centre, district and state are kept; addresses and phone numbers are dropped. Source, date and limits are in `meta.tsv` and shown in the app (Licences).
+- **Licence:** Razorpay states the dataset is public domain. RBI's own site carries "All Rights Reserved" and grants no explicit redistribution permission; NPCI's terms couldn't be read. Bundling was the maintainer's decision on that basis.
+- **Refresh:** download `IFSC.csv` from a newer release and `src/banknames.json` from the repo, then rerun the script with the new `--release` and `--rbi-date`.
 - **If no list is bundled:** ZepPay only checks the format.
 - **Not exhaustive:** branches open, merge and close. Many co-operative banks use another bank's IFSC and appear under that bank. "Not in the list" doesn't mean wrong, and "in the list" doesn't mean live.
 
