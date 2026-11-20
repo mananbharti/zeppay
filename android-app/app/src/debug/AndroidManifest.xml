@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Mirrors what the real com.android.phone/.MMIDialogActivity did on the Android 15 emulator:
+         a floating dialog in its own task (NEW_TASK | EXCLUDE_FROM_RECENTS), so Home hides it
+         and it can't be reopened from Recents. -->
     <application>
         <activity
             android:name=".debugtools.SimulatedCarrierActivity"
             android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
             android:label="ZepPay simulated carrier"
             android:theme="@android:style/Theme.Material.Light.Dialog" />
     </application>

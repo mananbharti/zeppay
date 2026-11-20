@@ -47,6 +47,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Floating guide clip for a setup step. Own task so it stays up over system Settings. -->
+        <activity
+            android:name=".guide.GuideVideoActivity"
+            android:exported="false"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.guide"
+            android:excludeFromRecents="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
         <service
             android:name=".ussd.UssdService"
             android:exported="false"
@@ -58,5 +70,7 @@
 
         <service android:name=".update.CheckJob" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
         <receiver android:name=".update.InstallStatusReceiver" android:exported="false" />
+        <!-- The status notification's Cancel button. Not exported: only ZepPay's own PendingIntent reaches it. -->
+        <receiver android:name=".notify.CancelReceiver" android:exported="false" />
     </application>
 </manifest>

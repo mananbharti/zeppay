@@ -74,7 +74,7 @@ data class MenuScan(val carrier: String, val at: Long, val raw: String, val item
  * history and settings). Plain JSON on purpose: no secrets live here, there is no PIN to
  * protect, and staying dependency-free keeps v1 data readable. allowBackup is off.
  */
-class Store(context: Context) {
+class Store(private val context: Context) {
     private val prefs = context.getSharedPreferences("zeppay", Context.MODE_PRIVATE)
 
     private fun bool(k: String, d: Boolean) = prefs.getBoolean(k, d)
@@ -97,6 +97,24 @@ class Store(context: Context) {
     var lastUpdateCheck: Long get() = prefs.getLong("lastUpdateCheck", 0); set(v) = prefs.edit().putLong("lastUpdateCheck", v).apply()
     /** Debug builds only: a manifest URL for testing updates against a local server. */
     var updateUrlOverride: String get() = str("updateUrlOverride", ""); set(v) = put("updateUrlOverride", v)
+
+    /**
+     * The optional progress card over the bank's screen. Unset (upgrades from 2.0.0) means on
+     * only if "display over other apps" was already granted, so nobody is asked again.
+     */
+    var overlayCard: Boolean
+        get() = if (prefs.contains("overlayCard")) bool("overlayCard", false) else android.provider.Settings.canDrawOverlays(context)
+        set(v) = put("overlayCard", v)
+    /** Setup walkthrough progress: steps the user chose to skip, by id. */
+    var setupSkipped: Set<String>
+        get() = prefs.getStringSet("setupSkipped", emptySet())?.toSet() ?: emptySet()
+        set(v) = prefs.edit().putStringSet("setupSkipped", v).apply()
+    /** The user went to Accessibility from the walkthrough at least once (shows the restricted-settings step if it stayed off). */
+    var helperAttempted: Boolean get() = bool("helperAttempted", false); set(v) = put("helperAttempted", v)
+    /** Runtime permissions already asked once, by name (so a second ask goes to App info instead). */
+    var askedPermissions: Set<String>
+        get() = prefs.getStringSet("askedPermissions", emptySet())?.toSet() ?: emptySet()
+        set(v) = prefs.edit().putStringSet("askedPermissions", v).apply()
 
     var menuScan: MenuScan?
         get() = try { MenuScan.fromJson(prefs.getString("menuScan", null)?.let { JSONObject(it) }) } catch (_: Exception) { null }

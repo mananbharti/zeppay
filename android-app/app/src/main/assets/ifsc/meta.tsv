@@ -1,0 +1,9 @@
+source	Razorpay IFSC dataset, compiled from RBI's NEFT/RTGS IFSC lists and NPCI member lists
+sourceUrl	https://github.com/razorpay/ifsc
+licence	Stated as public domain by its publisher (Razorpay); underlying RBI/NPCI terms not confirmed
+release	v2.0.62
+rbiDate	2026-08-15
+branches	183214
+banks	260
+skippedRows	0
+limits	A copy of published lists on the date above. Not every branch may be listed: branches open, merge and close, and many co-operative banks use another bank's IFSC (listed under that bank). A code being listed or well-formed doesn't prove it is live. Check the branch with the person you're paying.

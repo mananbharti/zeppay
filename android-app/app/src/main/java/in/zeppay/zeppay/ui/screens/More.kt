@@ -85,6 +85,7 @@ fun SettingsScreen(vm: ZepViewModel) {
     var auto by remember { mutableStateOf(vm.store.autoUpdateCheck) }
     var sim by remember { mutableStateOf(Engine.simulate) }
     var url by remember { mutableStateOf(vm.store.updateUrlOverride) }
+    var card by remember { mutableStateOf(vm.store.overlayCard) }
     var clear by remember { mutableIntStateOf(0) }
     val phonePerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.refreshSims() }
     Page("Settings", { vm.back() }) {
@@ -106,6 +107,11 @@ fun SettingsScreen(vm: ZepViewModel) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf("auto" to "Auto", "light" to "Whitewash", "dark" to "Teal wall").forEach { (k, l) -> Chip(l, theme == k) { vm.setTheme(k) } }
         }
+        Kicker("While paying")
+        Toggle("Progress card over the bank's screen", "Optional. A small card above the *99# screen shows what ZepPay is doing. The notification shows the same, with Cancel.", card) {
+            card = it; vm.store.overlayCard = it
+            if (it && !HandoffOverlay.canShow(ctx)) vm.go(Screen.Setup("overlay"))
+        }
         Kicker("123PAY call (Jio)")
         Toggle("Key in the call steps for me", "Sends menu tones on the call. Not tested on a real Jio SIM yet; if a tone lands early, press it yourself.", assist) { assist = it; vm.store.dtmfAssist = it }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -122,7 +128,12 @@ fun SettingsScreen(vm: ZepViewModel) {
         PlainButton(if (clear == 0) "Clear payment activity" else "Tap again: delete all activity", {
             if (clear == 0) clear = 1 else { vm.clearHistory(); clear = 0; vm.showToast("Activity cleared") }
         }, Modifier.fillMaxWidth(), icon = ZIcon.Trash, tint = Zep.c.failed)
-        PlainButton("Replay setup", { vm.replaySetup() }, Modifier.fillMaxWidth())
+        Kicker("Setup")
+        PlainButton("Open setup walkthrough", {
+            vm.store.setupSkipped = emptySet() // reopening offers skipped steps again; done ones stay done
+            vm.go(Screen.Setup())
+        }, Modifier.fillMaxWidth(), icon = ZIcon.Shield)
+        PlainButton("Replay the welcome", { vm.replaySetup() }, Modifier.fillMaxWidth())
         Fine("Everything stays on this phone. No account, no analytics, no server.")
         @Suppress("UNUSED_VARIABLE") val unused = Uri.EMPTY
     }
@@ -149,9 +160,10 @@ fun HelperScreen(vm: ZepViewModel) {
             Fine("1. Tap below to open ZepPay's App info.\n2. Tap the ⋮ menu at the top right.\n3. Tap \"Allow restricted settings\" and confirm.\n4. Come back and do step 1 again.\nThe exact wording differs by phone. This flow hasn't been checked on your phone yet.")
             PlainButton("Open App info", { ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }, Modifier.fillMaxWidth())
         }
+        if (!helper) PlainButton("Walk me through it", { vm.go(Screen.Setup("helper")) }, Modifier.fillMaxWidth(), icon = ZIcon.Image)
         StepCard(3, "Show progress over the bank's screen (optional)", if (overlay) "Done" else null) {
-            PlainButton("Allow display over apps", { HandoffOverlay.openPermission(ctx) }, Modifier.fillMaxWidth(), icon = ZIcon.Layers)
-            Fine("Shows a small ZepPay sign at the top while paying. It never covers the bank's screen.")
+            PlainButton("Allow display over apps", { vm.store.overlayCard = true; vm.go(Screen.Setup("overlay")) }, Modifier.fillMaxWidth(), icon = ZIcon.Layers)
+            Fine("Shows a small ZepPay card at the top while paying. It never covers the bank's screen. You can switch it off in Settings.")
         }
     }
 }
@@ -192,6 +204,7 @@ fun BankSetupScreen(vm: ZepViewModel) {
         Text(t, style = ZType.hero, color = c.text)
         Body(d)
         if (i in 1..5) BankCounter(Modifier.fillMaxWidth()) { Body("You type this on the bank's screen. ZepPay isn't involved in this step.") }
+        if (i == 2) BankCodeLookup()
     }
 }
 
@@ -207,6 +220,7 @@ fun MenuCheckScreen(vm: ZepViewModel) {
     val callPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     Page("Check my SIM's menu", { Engine.clear(); vm.back() }, footer = {
         ActionButton(if (scan == null) "Check now" else "Check again", {
+            `in`.zeppay.zeppay.LiveInfo.what = "Menu check"; `in`.zeppay.zeppay.LiveInfo.payeeLine = "your menu check"
             when (vm.startInfo(Op.DISCOVER)) {
                 Engine.StartResult.NeedsAccessibility -> vm.go(Screen.Helper)
                 Engine.StartResult.NeedsCallPermission -> callPerm.launch(android.Manifest.permission.CALL_PHONE)
@@ -248,7 +262,7 @@ fun UpdateScreen(vm: ZepViewModel) {
         when (val s = st) {
             is UpdateState.Available -> ActionButton("Update now", { scope.launch { Updater.downloadAndInstall(ctx, s.r) } }, Modifier.fillMaxWidth(), icon = ZIcon.Update)
             is UpdateState.NeedsInstallPermission -> {
-                ActionButton("Allow updates from ZepPay", { Updater.openInstallPermission(ctx) }, Modifier.fillMaxWidth())
+                ActionButton("Allow updates from ZepPay", { vm.go(Screen.Setup("install")) }, Modifier.fillMaxWidth())
                 PlainButton("I've allowed it: update", { scope.launch { Updater.downloadAndInstall(ctx, s.r) } }, Modifier.fillMaxWidth())
             }
             is UpdateState.Failed -> s.r?.let { r -> ActionButton("Try again", { scope.launch { Updater.downloadAndInstall(ctx, r) } }, Modifier.fillMaxWidth()) }
@@ -309,6 +323,9 @@ fun LicensesScreen(vm: ZepViewModel) {
         Body("Bricolage Grotesque and Atkinson Hyperlegible Next: SIL Open Font License 1.1 (full text ships in the app).")
         Body("ZXing: Apache License 2.0. AndroidX and Jetpack Compose: Apache License 2.0.")
         Body("The stepwise *99# approach was studied in OffPay (github.com/laksh-ya/OffPayApp, MIT, © 2026 Lakshya and Harsh). ZepPay's code is its own; OffPay's PIN entry and success rules were deliberately not adopted.")
+        Directory.get(LocalContext.current).info?.let { d ->
+            Body("Bank and IFSC list: ${d.source} (${d.sourceUrl}), release ${d.release}, RBI list of ${d.rbiDate}, ${d.branches} branches. ${d.licence}.")
+        }
         Body("UPI is a trademark of NPCI. ZepPay isn't affiliated with NPCI or any bank.")
     }
 }
