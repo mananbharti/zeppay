@@ -109,3 +109,29 @@ describe('Fam UPI addresses', () => {
     expect(parseUpi('upi://pay?pa=sample.user@fam&pn=Scanner%20Test&am=35&tr=ORDER12345&tn=ORDER12345&cu=INR')).toEqual({vpa:'sample.user@fam',name:'Scanner Test',amount:'35',note:'ORDER12345'});
   });
 });
+
+import { equalShares, debts, ME, totalOwedToYou, monthly } from './lib.js';
+describe('splits', () => {
+  it('equal shares sum exactly', () => {
+    const s = equalShares(100, [ME, 'a', 'r']);
+    expect(Object.values(s).reduce((x, y) => x + y, 0)).toBeCloseTo(100, 5);
+    expect(s[ME]).toBe(33.33);
+  });
+  it('nets debts and settles', () => {
+    const g = { people: [{ id: 'a' }, { id: 'r' }], expenses: [
+      { paidBy: ME, shares: equalShares(300, [ME, 'a', 'r']) },
+      { paidBy: 'a', shares: equalShares(90, [ME, 'a']) },
+    ], settlements: [] };
+    expect(debts(g)).toEqual(expect.arrayContaining([{ from: 'a', to: ME, amount: 55 }, { from: 'r', to: ME, amount: 100 }]));
+    g.settlements.push({ from: 'a', to: ME, amount: 55 });
+    expect(debts(g).find((d) => d.from === 'a')).toBeUndefined();
+    expect(totalOwedToYou([g])).toBe(100);
+  });
+});
+describe('spends', () => {
+  it('counts only confirmed payments, keeps unconfirmed separate', () => {
+    const now = Date.now();
+    const m = monthly([{ status: 'success', amount: 100, at: now, name: 'X' }, { status: 'unknown', amount: 50, at: now }], 1, now)[0];
+    expect(m.paid).toBe(100); expect(m.unconfirmed).toBe(1);
+  });
+});
