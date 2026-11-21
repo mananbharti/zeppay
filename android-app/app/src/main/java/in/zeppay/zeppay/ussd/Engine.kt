@@ -83,8 +83,6 @@ object Engine {
     private const val IDLE_AUTOMATING_MS = 20_000L
     private const val IDLE_WITH_USER_MS = 120_000L
     private const val HARD_CAP_MS = 240_000L
-    /** How long ZepPay waits for a hidden bank screen to come back before ending the session. */
-    const val AWAY_GRACE_MS = 90_000L
 
     private val main = Handler(Looper.getMainLooper())
     private val _session = MutableStateFlow<Session?>(null)
@@ -135,10 +133,17 @@ object Engine {
         stepNo = 0
         pendingReply = null
         _session.value = Session(id, op, txId, Phase.Dialing)
+        log(id, "start ${op.name}${if (simulated) " (simulated)" else ""}")
         attach = { sv ->
             sv.active = true
             sv.listener = { f -> main.post { onFrame(id, f) } }
-            sv.onGone = { main.post { if (_session.value?.id == id) end(id, r.onSessionEnded("The bank's screen closed.")) } }
+            sv.onGone = { main.post {
+                if (_session.value?.id != id) return@post
+                // After the PIN step the bank may take a while to reply, and some phones show no
+                // dialog meanwhile. Only the reply or the usual wait ends it (Not confirmed).
+                if (r.pinSeen) log(id, "dialog gone after the PIN step: waiting for the reply")
+                else { log(id, "dialog closed"); end(id, r.onSessionEnded("The bank's screen closed.")) }
+            } }
             sv.onAway = { main.post { away(id) } }
             sv.onBack = { main.post { back(id) } }
             sv.startWatching()
@@ -184,8 +189,8 @@ object Engine {
                 pendingReply = d.text
                 main.postDelayed({ typePending(id) }, PACE_MS)
             }
-            Decision.PinHandoff -> { _session.value = s.copy(phase = Phase.PinHandoff, frames = frames); armIdle(id, IDLE_WITH_USER_MS) }
-            is Decision.NeedsUser -> { _session.value = s.copy(phase = Phase.NeedsUser(d.prompt), frames = frames); armIdle(id, IDLE_WITH_USER_MS) }
+            Decision.PinHandoff -> { log(id, "pin handoff"); _session.value = s.copy(phase = Phase.PinHandoff, frames = frames); armIdle(id, IDLE_WITH_USER_MS) }
+            is Decision.NeedsUser -> { log(id, "needs user"); _session.value = s.copy(phase = Phase.NeedsUser(d.prompt), frames = frames); armIdle(id, IDLE_WITH_USER_MS) }
             is Decision.Finish -> {
                 _session.value = s.copy(frames = frames)
                 // Close the result dialog only after its text is captured (and, for menu checks, right away).
@@ -204,19 +209,17 @@ object Engine {
         else end(id, r.onSessionEnded("ZepPay couldn't type into the bank's screen."))
     }
 
-    /** The bank's screen is out of sight (not closed back to ZepPay). Wait for it; never type blind. */
+    /**
+     * The bank's screen is out of sight (another app is on top). Display only: ZepPay pauses
+     * typing, but the session's normal timeouts keep running and decide the outcome, exactly as
+     * in 2.0.0 (Stopped if nothing comes back before the PIN step, Not confirmed after it).
+     */
     private fun away(id: Int) {
         val s = _session.value ?: return
         val r = runner ?: return
         if (s.id != id || s.phase is Phase.Done || s.phase is Phase.Away) return
+        log(id, "away")
         _session.value = s.copy(phase = Phase.Away(s.phase, r.pinSeen, SystemClock.elapsedRealtime()))
-        val token = Any(); idleToken = token
-        main.postDelayed({
-            if (idleToken === token && (_session.value?.phase as? Phase.Away) != null && _session.value?.id == id)
-                end(id, r.onSessionEnded(
-                    if (r.pinSeen) "The bank's screen went out of sight after the PIN step and didn't come back."
-                    else "The bank's screen went out of sight before the PIN step and didn't come back within ${AWAY_GRACE_MS / 1000}s, so ZepPay stopped watching. If you bring it back and finish there yourself, check your bank SMS."))
-        }, AWAY_GRACE_MS)
     }
 
     /** The bank's screen is visible again: carry on where the session was. */
@@ -224,11 +227,14 @@ object Engine {
         val s = _session.value ?: return
         val a = s.phase as? Phase.Away ?: return
         if (s.id != id) return
+        log(id, "back")
         _session.value = s.copy(phase = a.before)
-        armIdle(id, if (a.before is Phase.Working || a.before is Phase.Dialing) IDLE_AUTOMATING_MS else IDLE_WITH_USER_MS)
         if (a.before is Phase.Working && pendingReply != null) main.postDelayed({ typePending(id) }, PACE_MS)
         UssdService.instance?.readSoon()
     }
+
+    /** Session state changes only: never frame text, payee, amount or anything typed. */
+    private fun log(id: Int, what: String) { android.util.Log.i("ZepPayEngine", "session $id: $what") }
 
     private var idleToken = Any()
     private fun armIdle(id: Int, ms: Long) {
@@ -245,6 +251,7 @@ object Engine {
         val s = _session.value ?: return
         if (s.id != id || s.phase is Phase.Done) return
         _session.value = s.copy(phase = Phase.Done(o))
+        log(id, "end ${o.kind}")
         attach = null
         pendingReply = null
         UssdService.instance?.let { it.active = false; it.listener = null; it.onGone = null; it.onAway = null; it.onBack = null }

@@ -127,13 +127,28 @@ object Lib {
 
 data class UpiPayload(val vpa: String, val name: String, val amount: String, val note: String)
 
-/** Parses upi://pay?pa=..&pn=..&am=..&tn=.. or a bare VPA. Returns null when not UPI. */
+/**
+ * Parses what a UPI QR holds:
+ *  - a `upi://pay?pa=..&pn=..&am=..&tn=..` link (personal QRs from Google Pay, PhonePe, Paytm,
+ *    FamPay, and most merchant stickers), also when the link is embedded in other text;
+ *  - an EMVCo / BharatQR payload (`000201...`), used by many merchant and bank QRs: the UPI ID
+ *    sits in a merchant-account field (26-51), the name in field 59, the amount in field 54;
+ *  - a bare UPI ID.
+ * Returns null when there is no valid UPI ID in it.
+ */
 object UpiParser {
     fun parse(text: String?): UpiPayload? {
-        val s = text?.trim().orEmpty()
+        val s = text?.trim()?.removePrefix("\uFEFF").orEmpty()
         if (s.isEmpty()) return null
         if (Lib.isValidVpa(s)) return UpiPayload(s, "", "", "")
-        if (!s.startsWith("upi://", ignoreCase = true)) return null
+        if (s.startsWith("000201")) parseEmv(s)?.let { return it }
+        val at = s.indexOf("upi://", ignoreCase = true)
+        if (at < 0) return null
+        // Names may contain raw spaces, so the link runs to the end of its line.
+        return parseLink(s.substring(at).substringBefore('\n').trim())
+    }
+
+    private fun parseLink(s: String): UpiPayload? {
         val q = s.substringAfter('?', "")
         val params = LinkedHashMap<String, String>()
         for (pair in q.split('&')) {
@@ -152,6 +167,44 @@ object UpiParser {
             name = params["pn"]?.trim()?.take(60).orEmpty(),
             amount = if (amOk) trimNum(am) else "",
             note = params["tn"]?.trim()?.take(50).orEmpty(),
+        )
+    }
+
+    /** EMVCo tag-length-value: two-digit id, two-digit length, value. null if malformed. */
+    private fun tlv(s: String): Map<String, String>? {
+        val out = LinkedHashMap<String, String>()
+        var i = 0
+        while (i < s.length) {
+            if (i + 4 > s.length) return null
+            val id = s.substring(i, i + 2)
+            val len = s.substring(i + 2, i + 4).toIntOrNull() ?: return null
+            if (!id.all(Char::isDigit) || i + 4 + len > s.length) return null
+            out[id] = s.substring(i + 4, i + 4 + len)
+            i += 4 + len
+        }
+        return out
+    }
+
+    private fun parseEmv(s: String): UpiPayload? {
+        val top = tlv(s) ?: return null
+        var vpa = ""
+        var link: UpiPayload? = null
+        for (id in 26..51) {
+            val v = top[id.toString()] ?: continue
+            if (v.contains("upi://", ignoreCase = true)) { link = parseLink(v.substring(v.indexOf("upi://", ignoreCase = true))); if (link != null) break }
+            val sub = tlv(v) ?: continue
+            sub.values.map { it.trim() }.firstOrNull { Lib.isValidVpa(it) }?.let { vpa = it }
+            if (vpa.isNotEmpty()) break
+        }
+        if (link != null && vpa.isEmpty()) vpa = link.vpa
+        if (!Lib.isValidVpa(vpa)) return null
+        val am = top["54"]?.trim().orEmpty()
+        val amOk = am.toDoubleOrNull()?.let { it > 0 } == true
+        return UpiPayload(
+            vpa = vpa,
+            name = (top["59"]?.trim().orEmpty()).ifEmpty { link?.name.orEmpty() }.take(60),
+            amount = if (amOk) trimNum(am) else link?.amount.orEmpty(),
+            note = link?.note.orEmpty(),
         )
     }
 

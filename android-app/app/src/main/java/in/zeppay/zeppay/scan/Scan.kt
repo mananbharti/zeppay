@@ -57,6 +57,9 @@ import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
+import com.google.zxing.common.GlobalHistogramBinarizer
+import com.google.zxing.LuminanceSource
+import com.google.zxing.PlanarYUVLuminanceSource
 import `in`.zeppay.zeppay.data.UpiPayload
 import `in`.zeppay.zeppay.data.UpiParser
 import java.io.ByteArrayOutputStream
@@ -66,17 +69,45 @@ private fun newReader(): MultiFormatReader {
     val hints = mapOf(
         DecodeHintType.TRY_HARDER to true,
         DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+        // Payee names can be non-ASCII (Hindi, Tamil...): read QR bytes as UTF-8, not Latin-1.
+        DecodeHintType.CHARACTER_SET to "UTF-8",
+        // Some printed and on-screen QRs are light-on-dark.
+        DecodeHintType.ALSO_INVERTED to true,
     )
     return MultiFormatReader().apply { setHints(hints) }
 }
 
-fun decodePixels(width: Int, height: Int, pixels: IntArray): String? {
-    val source = RGBLuminanceSource(width, height, pixels)
-    return try {
-        newReader().decodeWithState(BinaryBitmap(HybridBinarizer(source))).text
-    } catch (e: Exception) {
-        null
+/** Tries the local-contrast binarizer first (logos, shadows), then the global one (screens, glare). */
+fun decodeLuminance(source: LuminanceSource): String? {
+    val reader = newReader()
+    for (bin in listOf<(LuminanceSource) -> com.google.zxing.Binarizer>({ HybridBinarizer(it) }, { GlobalHistogramBinarizer(it) })) {
+        try { return reader.decodeWithState(BinaryBitmap(bin(source))).text } catch (_: Exception) { reader.reset() }
     }
+    return null
+}
+
+fun decodePixels(width: Int, height: Int, pixels: IntArray): String? = decodeLuminance(RGBLuminanceSource(width, height, pixels))
+
+/**
+ * Decodes straight from the camera's brightness (Y) plane: no JPEG round trip, so the fine
+ * modules of dense QRs (Google Pay, merchant stickers with a logo) stay sharp. Tries the whole
+ * frame, then the middle 60%, where people hold the QR.
+ */
+fun decodeImage(image: ImageProxy): String? {
+    if (image.format != ImageFormat.YUV_420_888) return null
+    val w = image.width; val h = image.height
+    val plane = image.planes[0]
+    val buf = plane.buffer.duplicate().apply { rewind() }
+    val y = ByteArray(w * h)
+    val stride = plane.rowStride; val px = plane.pixelStride
+    if (px == 1 && stride == w) buf.get(y, 0, minOf(y.size, buf.remaining()))
+    else for (row in 0 until h) for (col in 0 until w) {
+        val i = row * stride + col * px
+        if (i < buf.limit()) y[row * w + col] = buf.get(i)
+    }
+    decodeLuminance(PlanarYUVLuminanceSource(y, w, h, 0, 0, w, h, false))?.let { return it }
+    val cw = (w * 0.6).toInt(); val ch = (h * 0.6).toInt()
+    return decodeLuminance(PlanarYUVLuminanceSource(y, w, h, (w - cw) / 2, (h - ch) / 2, cw, ch, false))
 }
 
 fun decodeBitmap(src: Bitmap): String? {
@@ -137,7 +168,7 @@ fun CameraPreview(
                             ResolutionSelector.Builder()
                                 .setResolutionStrategy(
                                     ResolutionStrategy(
-                                        Size(1280, 720),
+                                        Size(1920, 1080),
                                         ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
                                     ),
                                 )
@@ -153,9 +184,8 @@ fun CameraPreview(
                             val now = System.currentTimeMillis()
                             if (now - lastAt < 250) { image.close(); return@setAnalyzer }
                             lastAt = now
-                            val bmp = imageProxyToBitmap(image)
+                            val text = decodeImage(image)
                             image.close()
-                            val text = bmp?.let { decodeBitmap(it) }
                             if (text != null) {
                                 if (UpiParser.parse(text) != null) {
                                     done = true

@@ -94,7 +94,7 @@ fun LiveScreen(vm: ZepViewModel, txId: String?) {
                     Spacer(Modifier.height(6.dp))
                     Body(if (phase.pinSeen) "If you already typed your PIN, the payment may have gone through. Check your bank SMS before paying again."
                         else "ZepPay paused and isn't typing anything. Nothing is paid yet.")
-                    Fine("On many phones the *99# screen can't be brought back once you leave it. If it doesn't come back within ${`in`.zeppay.zeppay.ussd.Engine.AWAY_GRACE_MS / 1000} seconds, ZepPay ends this session${if (phase.pinSeen) " as not confirmed" else " as stopped"}.")
+                    Fine("On many phones the *99# screen can't be brought back once you leave it. If no reply comes, ZepPay ends this session${if (phase.pinSeen) " as not confirmed" else " as stopped"} after its usual wait.")
                 }
                 is Phase.NeedsUser -> BankCounter(Modifier.fillMaxWidth()) {
                     Kicker("Your bank is asking", color = c.bank)
