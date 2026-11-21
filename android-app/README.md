@@ -21,7 +21,7 @@ Real emulator screenshots of this build. Design contract: [docs/DESIGN.md](docs/
 
 ## What it does
 
-- **Scan any UPI QR** (CameraX + ZXing, decoded on the phone), or pick a QR picture, or paste a UPI ID / `upi://` link
+- **Scan a UPI QR** (CameraX + ZXing, decoded on the phone): `upi://` links from any UPI app and BharatQR/EMVCo merchant codes; or pick a QR picture, or paste a UPI ID / `upi://` link
 - **Pay a phone number, UPI ID, or bank account + IFSC**; pick a number from contacts (system picker, no contacts permission)
 - **Stepwise `*99#` with the ZepPay helper:** dials only the menu code (e.g. `*99*1*3#`), then fills in the payee, amount and note one prompt at a time, **steps aside at the PIN prompt**, and reads the bank's reply
 - **Honest outcomes:** *Paid* only when the payment flow's own reply says so after the PIN step. A bare reference number, a conflicting message, an amount mismatch or a closed screen is **Not confirmed**, shown with the bank's exact words and a "don't pay again yet" warning. Never auto-retries
@@ -56,7 +56,8 @@ The `*99#` session runs at app level, not inside ZepPay's screen: closing or swi
 What ZepPay can't change: the `*99#` dialog belongs to your phone app.
 
 - On the Android 15 emulator it is `com.android.phone/.MMIDialogActivity`, a floating dialog in its own task that is **excluded from Recents**. Pressing Home hides it, and there's no way back to it.
-- ZepPay notices within about 2 seconds that the bank's screen is out of sight (rather than closed), pauses, and never types blind. If the screen comes back, it carries on. If not, after 90 seconds it ends the session: **Stopped, nothing paid** if you hadn't reached the PIN step, or **Not confirmed** if you had.
+- After about 6 seconds without the bank's screen while another app is on top, ZepPay shows "out of sight", pauses and never types blind. If the screen comes back, it carries on. How a session ends is unchanged from 2.0.0: the bank's reply, or the usual wait (20 s while ZepPay is filling in, 2 min once it's your turn) ending as **Stopped, nothing paid** before the PIN step or **Not confirmed** after it.
+- After the PIN step, a closed dialog never ends the session by itself: some phones show nothing for several seconds while the bank processes, and ZepPay waits for the reply. (2.1.0 ended such payments as Not confirmed after 2 seconds; fixed in 2.1.1.)
 - The PIN step always needs you at the bank's screen. ZepPay never automates it or defers it.
 - When the session ends while you're in another app, you get a private result notification instead of being pulled back into ZepPay.
 
@@ -94,7 +95,9 @@ The finder only fills in the IFSC field. It never links, checks or verifies anyo
 | Setup state machine, IFSC format/search/loading, notification wording (only a bank-confirmed payment says "Paid"; lock-screen text has no payee or amount) | 21 new unit tests pass (73 in all) |
 | Stepwise automation → PIN handoff → reading the reply → Paid / Not confirmed | Passed on emulator (re-checked after these changes) |
 | Status notification: private visibility, redacted public version, local-only, Cancel / Stop watching | Passed on emulator (`dumpsys notification`) |
-| Leaving during the session: detected in ~2 s; pre-PIN Cancel → Stopped; post-PIN Stop watching → Not confirmed; timeout while away → private result notification, no pull back | Passed on emulator |
+| Leaving during the session: shown as out of sight; pre-PIN Cancel → Stopped; post-PIN Stop watching → Not confirmed; timeout while away → private result notification, no pull back | Passed on emulator (2.1.0 build) |
+| Bank's dialog gone for 6 s after the PIN step, then the reply: waits and reads it (`slow` script) | Passed on emulator (2.1.1 fix) |
+| QR: Google Pay-style links, BharatQR/EMVCo merchant codes, links inside text, non-ASCII names, logo-covered and inverted codes | Unit tests (decoder runs on generated QR images). **Not yet checked with your real Google Pay QR** |
 | ZepPay's task removed from Recents mid-session: process and session continue | Passed on emulator |
 | Real `*99#` dialog when leaving: hidden, not in Recents | Observed on emulator with Android's own phone app (its modem never answers `*99#`, so only the "running" dialog was seen). **Not checked on the phone yet** |
 | Setup walkthrough: auto-detect on return, skip, saved progress | Passed on emulator; first two steps also on the phone |
@@ -140,7 +143,7 @@ Debug builds include a simulated carrier for emulator testing:
 adb shell am start -n in.zeppay.zeppay.debug/in.zeppay.zeppay.MainActivity --es demo sim:ok
 ```
 
-Scripts: `ok`, `ambiguous`, `fail`, `needs_account`. The simulated texts are illustrative, not captured from a carrier. The simulated dialog runs in its own task and is hidden from Recents, like the real one, so leaving the app can be tested.
+Scripts: `ok`, `ambiguous`, `fail`, `needs_account`, `slow` (the dialog disappears for 6 s after the PIN step before the reply). The simulated texts are illustrative, not captured from a carrier. The simulated dialog runs in its own task and is hidden from Recents, like the real one, so leaving the app can be tested.
 
 Guide clips: record a step with `adb shell screenrecord`, then `tools/guides/encode.sh <raw.mp4> <step>` (`SPEED=2` for slow captures). An unrecorded step can use `tools/guides/placeholder.sh`, which makes a clip clearly labelled PLACEHOLDER. Either way, the file in `res/raw/` is replaced with no code change.
 

@@ -16,7 +16,9 @@ import `in`.zeppay.zeppay.ussd.UssdService
  * carrier's *99# dialog so the stepwise engine can be exercised on an emulator with no SIM.
  * Frames are illustrative, not captured from a real carrier: real texts must come from the
  * carrier-menu check on a real phone. Nothing here touches the network or money.
- * Extra "script": ok (default) | ambiguous | fail | needs_account.
+ * Extra "script": ok (default) | ambiguous | fail | needs_account | slow.
+ * "slow" closes the dialog for 6 s after the PIN step before the reply appears, the way some
+ * real phones show nothing while the bank processes (the gap that 2.1.0 misread as "closed").
  */
 class SimulatedCarrierActivity : Activity() {
     private lateinit var msg: TextView
@@ -36,6 +38,8 @@ class SimulatedCarrierActivity : Activity() {
         val cancel = Button(this).apply { text = "Cancel"; setOnClickListener { finish() } }
         val row = LinearLayout(this).apply { gravity = Gravity.END; addView(cancel); addView(send) }
         setContentView(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad); addView(msg); addView(input); addView(row) })
+        step = intent.getIntExtra("startStep", 0)
+        intent.getStringArrayListExtra("answers")?.let { answers.addAll(it) }
         show()
     }
 
@@ -81,6 +85,15 @@ class SimulatedCarrierActivity : Activity() {
         val isMenu = script == "needs_account" && step == 0
         if (!isPin && !isMenu) answers += value
         step++
+        if (isPin && script == "slow") {
+            val again = android.content.Intent(applicationContext, SimulatedCarrierActivity::class.java)
+                .putExtras(intent).putExtra("startStep", step).putStringArrayListExtra("answers", ArrayList(answers))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            val app = applicationContext
+            finish()
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ app.startActivity(again) }, 6_000)
+            return
+        }
         show()
     }
 }

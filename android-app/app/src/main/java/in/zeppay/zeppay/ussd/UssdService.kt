@@ -36,6 +36,8 @@ class UssdService : AccessibilityService() {
         )
         /** Debug builds only: the simulated carrier dialog lives in ZepPay's own package. */
         const val SIM_WINDOW_TITLE = "ZepPay simulated carrier"
+        /** Seconds without the bank's dialog (and another app on top) before showing "out of sight". */
+        const val AWAY_AFTER = 6
 
         private val PLACEHOLDER = Regex("^(ussd code running|please wait|loading|sending|running ussd code)[.…\\s]*$", RegexOption.IGNORE_CASE)
         private val SEND = listOf("send", "reply", "ok", "submit", "भेजें")
@@ -62,28 +64,33 @@ class UssdService : AccessibilityService() {
     private var seenDialog = false
     private val readNow = Runnable { readFrame() }
     private var misses = 0
-    private val checkGone = Runnable { check(requireMisses = 1) }
 
     /**
-     * Where the bank's screen is. Window-change events only arrive for the phone packages this
-     * helper is limited to, so leaving for the launcher or another app sends nothing; while a
-     * session runs, the window list is also checked once a second ([watch]). Only window types
-     * and package names are read here, never other apps' content.
+     * Window-change event from the phone app: the same rule as 2.0.0. If the bank's dialog is
+     * gone, the session ends (Stopped before the PIN step, Not confirmed after it). Only checked
+     * once the dialog has been seen, so nothing ends while *99# is still being dialled.
      */
-    private fun check(requireMisses: Int) {
-        if (!active) return
-        if (findRoot() != null) { misses = 0; seenDialog = true; onBack?.invoke(); return }
-        // Before the bank's screen first appears (still dialling) there is nothing to lose sight of.
-        if (!seenDialog) return
-        // Dialogs swap windows between steps; one empty sample isn't "gone".
-        if (++misses < requireMisses) return
-        // Closed (Cancel, or the bank ended it) lands back on ZepPay; anything else means the
-        // user went elsewhere and the dialog may only be hidden, so it isn't treated as closed.
-        if (zepPayOnTop()) onGone?.invoke() else onAway?.invoke()
+    private val checkGone = Runnable {
+        if (!active) return@Runnable
+        if (findRoot() != null) { misses = 0; seenDialog = true; onBack?.invoke(); return@Runnable }
+        if (seenDialog) onGone?.invoke()
     }
 
+    /**
+     * Once a second during a session: display only, it never ends a session. Window events
+     * don't arrive when the user switches to the launcher or another app, so this is how ZepPay
+     * notices it is out of sight. It needs [AWAY_AFTER] seconds without the dialog AND another
+     * app on top: on real phones the dialog can vanish for several seconds while the bank
+     * processes a reply (2.1.0 treated that gap as "closed" and ended payments as Not confirmed).
+     * Only window types and package names are read, never other apps' content.
+     */
     private val watch = object : Runnable {
-        override fun run() { if (!active) return; check(requireMisses = 2); main.postDelayed(this, 1_000) }
+        override fun run() {
+            if (!active) return
+            if (findRoot() != null) { misses = 0; seenDialog = true; onBack?.invoke() }
+            else if (seenDialog && ++misses >= AWAY_AFTER && !zepPayOnTop()) onAway?.invoke()
+            main.postDelayed(this, 1_000)
+        }
     }
 
     /** Called when a session attaches: watch the bank's screen until the session ends. */
