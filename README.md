@@ -18,7 +18,7 @@
 | [`gh-pages-root/`](gh-pages-root) | Static extras published with the website (Zep Card profile page) | |
 | [`backend/`](backend), [`supabase/`](supabase), `render.yaml` | Earlier OTP/Supabase backend, kept for reference. The current apps don't use it | |
 
-Both apps share one identity, "Aurora Signal", and one rule set: never capture the UPI PIN; show *Paid* only when the bank's reply (Android) or the user (iPhone) confirms it; never auto-retry an uncertain payment.
+The iPhone web app uses the "Blue Current" design (the Android app here is still on "Aurora Signal"). Both share one rule set: never capture the UPI PIN; show *Paid* only when the bank's reply (Android) or the user (iPhone) confirms it; never auto-retry an uncertain payment.
 
 The earlier Flutter app was removed in favour of these two. It's in git history, and its old releases stay downloadable.
 

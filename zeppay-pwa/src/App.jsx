@@ -10,7 +10,7 @@ import {
 } from './lib.js';
 
 /*
- * ZepPay web app for iPhone, "Aurora Signal" identity (same as the Android app).
+ * ZepPay web app for iPhone, "Blue Current" identity (same design system as the newest Android app).
  * A web page can't read the bank's *99# reply, so every status here comes from the user,
  * and the app says so. The UPI PIN is only ever typed in the phone's dialer.
  */
@@ -36,7 +36,7 @@ function useTheme() {
     const apply = () => {
       const dark = theme === 'dark' || (theme === 'auto' && mq.matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-      document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#070B14' : '#F5F7FC');
+      document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#080808' : '#F5F8FC');
     };
     apply(); mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
@@ -78,6 +78,18 @@ function Page({ title, onBack, foot, action, children, label: aria }) {
   );
 }
 const BankCounter = ({ children }) => <div className="bank"><b className="bank-k">BANK'S COUNTER</b>{children}</div>;
+/* Hero band: blue wash + dot grid + cyan glow. Decoration only, drawn in CSS. */
+const HeroBand = () => <div className="heroband" aria-hidden="true" />;
+/* Big scan corners + the cyan scan line, drawn in CSS (same drawing as the Android ScanCard). */
+const ScanMark = () => <span className="scanmark" aria-hidden="true"><i /><i /><i /><i /><b /></span>;
+/* The one hero object on Home: a rounded square with a blue gradient edge. Tap to scan. */
+function ScanCard({ onClick, aria, title, sub }) {
+  return (
+    <button className="scancard" onClick={onClick} aria-label={aria || title}>
+      <span className="scancard-in"><ScanMark /><b>{title}</b>{sub && <small>{sub}</small>}</span>
+    </button>
+  );
+}
 function Dial({ size = 224, working = false, onClick, aria, children }) {
   return (
     <div className={'dial' + (working ? ' working' : '')} style={{ width: size, height: size }}>
@@ -105,7 +117,7 @@ const isAndroid = () => typeof navigator !== 'undefined' && /Android/i.test(navi
 function AndroidNotice() {
   return (
     <div className="page intro">
-      <div className="hero"><div className="aurora" /><Dial size={200}><Ic.Phone width={48} height={48} /></Dial></div>
+      <div className="hero"><HeroBand /><span className="bigwell"><Ic.Phone width={44} height={44} /></span></div>
       <h1 className="h-hero">Made for iPhone</h1>
       <p className="lead">On Android, ZepPay is a full app: it fills in *99# for you and pays Jio numbers over UPI 123PAY.</p>
       <a className="pill primary" href={ANDROID_APP_URL}><Ic.Update width={22} height={22} /><span>Get the Android app</span></a>
@@ -172,9 +184,12 @@ export default function App() {
           {tab === 'more' && <MoreTab {...ctx} offlineReady={offlineReady} online={online} />}
         </main>
         <nav className="dock" aria-label="Main">
-          {[['pay', 'Pay', Ic.Scan], ['split', 'Split', Ic.Contacts], ['spends', 'Spends', Ic.Chart], ['more', 'More', Ic.More]].map(([id, l, I]) => (
-            <button key={id} className={tab === id ? 'on' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><I width={24} height={24} /><span>{l}</span></button>
-          ))}
+          <div className="dock-pill">
+            {[['pay', 'Pay', Ic.Home], ['split', 'Split', Ic.Contacts], ['spends', 'Spends', Ic.Chart], ['more', 'More', Ic.More]].map(([id, l, I]) => (
+              <button key={id} className={tab === id ? 'on' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><I width={24} height={24} /><span>{l}</span></button>
+            ))}
+          </div>
+          <button className="dock-scan" aria-label="Scan a QR to pay" onClick={() => go({ name: 'scan' })}><Ic.Scan width={28} height={28} /></button>
         </nav>
       </>}
       {s?.name === 'scan' && <Scanner {...ctx} onResult={(p) => replace({ name: 'pay', payee: p })} />}
@@ -219,7 +234,7 @@ function Onboarding({ onDone }) {
   return (
     <div className="page intro">
       <button className="skip" onClick={onDone}>Skip</button>
-      <div className="hero"><div className="aurora" /><Dial size={190}><I width={52} height={52} /></Dial></div>
+      <div className="hero"><HeroBand /><span className="bigwell"><I width={44} height={44} /></span></div>
       <div className="steps-dots" aria-label={`Step ${i + 1} of ${slides.length}`}>{slides.map((_, k) => <i key={k} className={k === i ? 'on' : k < i ? 'past' : ''} />)}</div>
       <h1 className="h-hero">{t}</h1>
       <p className="lead">{d}</p>
@@ -236,21 +251,22 @@ function PayTab({ carrier, supported, history, go }) {
   const recent = history.slice(0, 3);
   return (
     <>
-      <div className="row head">
-        <span className="wordmark">zeppay</span>
-        <button className="sim" onClick={() => go({ name: 'settings' })} aria-label="SIM settings"><i className={supported ? 'ok' : 'warn'} />{c?.name} · *99#</button>
+      <div className="hero"><HeroBand />
+        <div className="hero-in">
+          <div className="row head">
+            <span className="wordmark">zeppay</span>
+            <button className="sim" onClick={() => go({ name: 'settings' })} aria-label="SIM settings"><i className={supported ? 'ok' : 'warn'} />{c?.name} · *99#</button>
+          </div>
+          <ScanCard onClick={() => go({ name: 'scan' })} aria="Scan QR" title="Scan to pay" sub="Any UPI QR. No internet needed." />
+        </div>
       </div>
-      <div className="hero"><div className="aurora" />
-        <Dial onClick={() => go({ name: 'scan' })} aria="Scan QR"><Ic.Scan width={54} height={54} className="dial-ic" /><b>Scan to pay</b></Dial>
-      </div>
-      <p className="fine center">Any UPI QR. No internet needed.</p>
       {!supported && <div className="card warn" role="alert"><b>Jio has no *99#.</b><p>Payments from this web app need a *99# SIM (Airtel, Vi, BSNL). The Android app pays Jio numbers over UPI 123PAY.</p></div>}
       <h2>Pay someone</h2>
-      <div className="tiles">
-        <button className="tile" onClick={() => go({ name: 'payto', kind: 'mobile' })}><span className="bub a"><Ic.Phone /></span>Mobile no.</button>
-        <button className="tile" onClick={() => go({ name: 'payto', kind: 'upi' })}><span className="bub b"><Ic.At /></span>UPI ID</button>
-        <button className="tile" onClick={() => go({ name: 'payto', kind: 'bank' })}><span className="bub c"><Ic.Bank /></span>Bank a/c</button>
-        <button className="tile" onClick={() => go({ name: 'balance' })}><span className="bub d"><Ic.Wallet /></span>Balance</button>
+      <div className="qrow">
+        <button className="qact" onClick={() => go({ name: 'payto', kind: 'mobile' })}><span className="well"><Ic.Phone /></span>Mobile no.</button>
+        <button className="qact" onClick={() => go({ name: 'payto', kind: 'upi' })}><span className="well"><Ic.At /></span>UPI ID</button>
+        <button className="qact" onClick={() => go({ name: 'payto', kind: 'bank' })}><span className="well"><Ic.Bank /></span>Bank a/c</button>
+        <button className="qact" onClick={() => go({ name: 'balance' })}><span className="well"><Ic.Wallet /></span>Balance</button>
       </div>
       {recent.length > 0 && (
         <section className="card">
@@ -350,7 +366,7 @@ function Handoff({ tx, dialer = 'auto', showToast, back, onLaunch, onPick }) {
           <button className="pill secondary" onClick={() => onPick('failed')}><span>It didn't work</span></button>
         </div>
       </>}>
-      <div className="hero sm"><div className="aurora" /><Dial size={180}><b className="dial-amt">{formatINR(tx.amount)}</b><small>to {tx.name || tgt}</small></Dial></div>
+      <div className="hero sm"><Dial size={180} working><b className="dial-amt">{formatINR(tx.amount)}</b><small>to {tx.name || tgt}</small></Dial></div>
       <BankCounter>
         <h3>Finish in the Phone app</h3>
         {embeds
@@ -580,7 +596,7 @@ function MoreTab({ go, offlineReady }) {
     <>
       <h1 className="h-tab">More</h1>
       {rows.map(([n, t, s, I, b]) => <button key={n} className="trow" onClick={() => go({ name: n })}><span className={'bub sm ' + b}><I /></span><span className="grow"><b>{t}</b>{s && <small>{s}</small>}</span><Ic.Arrow /></button>)}
-      <p className="fine" role="status">{offlineReady ? 'Saved for offline use on this device.' : 'Not yet saved for offline use. Keep ZepPay open on internet once.'} v3.0.0</p>
+      <p className="fine" role="status">{offlineReady ? 'Saved for offline use on this device.' : 'Not yet saved for offline use. Keep ZepPay open on internet once.'} v3.1.0</p>
     </>
   );
 }

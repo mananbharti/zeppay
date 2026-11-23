@@ -18,7 +18,7 @@ Preview build: https://mananbharti.github.io/zeppay-pwa/
   <img src="docs/screenshots/13-settings.png" width="190" />
 </p>
 
-Design: "Aurora Signal", shared with the Android app (contract in the Android repo's `docs/DESIGN.md`). Screenshots are real renders from the browser test suite at 390×844.
+Design: "Blue Current", ported from the newest Android app (contract: `docs/DESIGN.md`). Screenshots are real renders from the browser test suite at 390×844.
 
 ## Features
 
